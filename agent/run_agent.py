@@ -25,12 +25,59 @@ ROOT = Path(__file__).resolve().parents[1]
 MCP_URL = os.getenv("MCP_URL", "http://127.0.0.1:8000/mcp")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
 MODEL = os.getenv("CHAT_MODEL", "qwen3:8b")
-SYSTEM = (ROOT / "agent" / "system_prompt.md").read_text(encoding="utf-8")
+SYSTEM = Path(os.getenv("PROMPT_FILE", ROOT / "agent" / "system_prompt.md")).read_text(encoding="utf-8")
 MAX_STEPS = 6
 THINK = os.getenv("THINK", "0") == "1"  # qwen3 思考模式：較準但較慢
 CALC_CHECK = os.getenv("CALC_CHECK", "1") == "1"  # 答案有算式卻沒用計算機 → 退回驗算
 # 「數字 運算子 數字」，例如 40,000 × 1.2、200元 × 3
 _ARITH = re.compile(r"\d[\d,.]*\s*(?:萬|千)?\s*(?:元|小時|個月|倍|日)?\s*[×xX*÷/+]\s*\(?\s*\d")
+
+
+# ---- 驗算（recheck）的開關：由改進循環的候選 env.yaml 控制 ----
+# RECHECK_MODE：inline＝在同一段對話裡退回重算（舊做法）；fresh＝開新對話，只給「問題＋查到的文件」，不給草稿
+RECHECK_MODE = os.getenv("RECHECK_MODE", "inline")
+RECHECK_THINK = os.getenv("RECHECK_THINK", "0") == "1"   # 驗算時才開思考模式
+NUMERIC_TRIGGER = os.getenv("NUMERIC_TRIGGER", "0") == "1"  # 問題有數字或問「幾／多少」也觸發驗算
+# DOC_CHECK：any＝有呼叫任何工具就算查過（舊）；strict＝一定要呼叫過查文件的工具（只用計算機不算）
+DOC_CHECK = os.getenv("DOC_CHECK", "any")
+_DOC_TOOLS = ("search_related_policies", "read_specific_document", "list_all_filenames")
+_NUMERIC_Q = re.compile(r"\d|幾|多少")
+_DEFAULT_RECHECK = (
+    "員工的問題：{q}\n\n以下是已經查到的規章內容：\n<<<\n{evidence}\n>>>\n\n"
+    "（系統檢查）這題涉及數字（計算或門檻條件），請照順序做：\n"
+    "1. 只根據上面的規章內容回答；內容不夠才用 search_related_policies 再查。不准引用上面沒出現的檔名。\n"
+    "2. 逐字找出相關條文（注意「以…為基準」「乘以…倍」「前…小時」「第…小時起」「…以上」「未滿…」這類字）。\n"
+    "3. 依條文列出完整公式或判斷條件：有基準就要乘基準，有分段就要分段算，有門檻就把員工的條件逐一比較。\n"
+    "4. 用 calculate 算出每一個數字或比較。\n"
+    "5. 最後只輸出給員工看的最終答案（附算式與 [[檔名]] 出處），不要提到系統檢查。"
+)
+# 候選可以用 RECHECK_PROMPT_FILE 換掉驗算 prompt（佔位符：{q}、{evidence}）
+_rp = os.getenv("RECHECK_PROMPT_FILE")
+FRESH_RECHECK = Path(_rp).read_text(encoding="utf-8") if _rp else _DEFAULT_RECHECK
+
+
+async def _tool_loop(session, http, msgs, ollama_tools, think, calls, outputs, verbose):
+    """跑到模型不再呼叫工具為止，回傳最後的文字答案（None＝超過步數）。"""
+    for _ in range(MAX_STEPS):
+        r = await http.post(f"{OLLAMA_URL}/api/chat", json={
+            "model": MODEL, "messages": msgs, "tools": ollama_tools, "stream": False,
+            "think": think, "options": {"temperature": 0},
+        })
+        r.raise_for_status()
+        msg = r.json()["message"]
+        msgs.append(msg)
+        if not msg.get("tool_calls"):
+            return msg.get("content", "").strip()
+        for tc in msg["tool_calls"]:
+            name, args = tc["function"]["name"], tc["function"].get("arguments") or {}
+            calls.append((name, args))
+            if verbose:
+                print(f"  🔧 {name}({json.dumps(args, ensure_ascii=False)})", file=sys.stderr)
+            res = await session.call_tool(name, args)
+            text = "\n".join(c.text for c in res.content if getattr(c, "text", None))
+            outputs.append(text)
+            msgs.append({"role": "tool", "content": text, "tool_name": name})
+    return None
 
 
 async def ask(session: ClientSession, question: str, verbose: bool = True, history: list | None = None) -> dict:
@@ -43,41 +90,33 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
     msgs = [{"role": "system", "content": SYSTEM}, *(history or []), {"role": "user", "content": question}]
     calls: list[tuple[str, dict]] = []
     outputs: list[str] = []
-    nudged = False
-    calc_nudged = False
+    nudged = calc_nudged = False
     async with httpx.AsyncClient(timeout=300) as http:
-        for _ in range(MAX_STEPS + 2):
-            r = await http.post(f"{OLLAMA_URL}/api/chat", json={
-                "model": MODEL, "messages": msgs, "tools": ollama_tools, "stream": False,
-                "think": THINK, "options": {"temperature": 0},
-            })
-            r.raise_for_status()
-            msg = r.json()["message"]
-            msgs.append(msg)
-            if not msg.get("tool_calls"):
-                ans = msg.get("content", "").strip()
-                # Harness 檢查 1：沒查任何文件就下結論（又不是拒答）→ 退回去要求先查一次
-                if not calls and not nudged and "只能回答" not in ans:
-                    nudged = True
-                    msgs.append({"role": "user", "content": "（系統檢查）你還沒有查詢任何文件。請先用 search_related_policies 查詢後再回答。"})
-                    continue
-                # Harness 檢查 2：答案裡有心算的算式，卻沒用計算機 → 要求用 calculate 驗算
-                used_calc = any(n.endswith("calculate") for n, _ in calls)
-                if CALC_CHECK and not used_calc and not calc_nudged and _ARITH.search(ans):
-                    calc_nudged = True
-                    msgs.append({"role": "user", "content": "（系統檢查）你的回答裡有計算，但沒有使用 calculate 工具。請先重新確認條文裡的公式（基準、倍數、分段），再用 calculate 算出每一個數字，最後重寫答案。"})
-                    continue
-                return {"answer": ans, "calls": calls, "outputs": outputs, "nudged": nudged, "calc_nudged": calc_nudged}
-            for tc in msg["tool_calls"]:
-                name, args = tc["function"]["name"], tc["function"].get("arguments") or {}
-                calls.append((name, args))
-                if verbose:
-                    print(f"  🔧 {name}({json.dumps(args, ensure_ascii=False)})", file=sys.stderr)
-                res = await session.call_tool(name, args)
-                text = "\n".join(c.text for c in res.content if getattr(c, "text", None))
-                outputs.append(text)
-                msgs.append({"role": "tool", "content": text, "tool_name": name})
-    return {"answer": "（超過工具呼叫上限）", "calls": calls, "outputs": outputs, "nudged": nudged}
+        ans = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
+        # Harness 檢查 1：沒查任何文件就下結論（又不是拒答）→ 退回去要求先查一次
+        looked = any(n.endswith(_DOC_TOOLS) for n, _ in calls) if DOC_CHECK == "strict" else bool(calls)
+        if ans is not None and not looked and "只能回答" not in ans:
+            nudged = True
+            msgs.append({"role": "user", "content": "（系統檢查）你還沒有查詢任何文件。請先用 search_related_policies 查詢後再回答。"})
+            ans = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
+        # Harness 檢查 2：答案有心算的算式（或問題本身涉及數字）卻沒用計算機 → 驗算
+        used_calc = any(n.endswith("calculate") for n, _ in calls)
+        refused = ans is not None and "只能回答" in ans
+        trigger = ans is not None and not refused and not used_calc and (
+            bool(_ARITH.search(ans)) or (NUMERIC_TRIGGER and bool(_NUMERIC_Q.search(question))))
+        if CALC_CHECK and trigger:
+            calc_nudged = True
+            if RECHECK_MODE == "fresh" and outputs:
+                evidence = "\n\n".join(o for o in outputs if "[[" in o)[:8000]  # 只給文件內容，不給計算機結果
+                fresh = [{"role": "system", "content": SYSTEM},
+                         {"role": "user", "content": FRESH_RECHECK.format(q=question, evidence=evidence)}]
+                again = await _tool_loop(session, http, fresh, ollama_tools, RECHECK_THINK or THINK, calls, outputs, verbose)
+            else:
+                msgs.append({"role": "user", "content": "（系統檢查）你的回答裡有計算，但沒有使用 calculate 工具。請先重新確認條文裡的公式（基準、倍數、分段），再用 calculate 算出每一個數字，最後重寫答案。"})
+                again = await _tool_loop(session, http, msgs, ollama_tools, RECHECK_THINK or THINK, calls, outputs, verbose)
+            ans = again if again else ans
+    return {"answer": ans if ans is not None else "（超過工具呼叫上限）", "calls": calls, "outputs": outputs,
+            "nudged": nudged, "calc_nudged": calc_nudged}
 
 
 def grade(item: dict, out: dict) -> tuple[bool, str]:
@@ -86,7 +125,7 @@ def grade(item: dict, out: dict) -> tuple[bool, str]:
         ok = not calls and "只能回答" in ans
         return ok, "拒答且未查工具" if ok else "應拒答"
     if item.get("not_found"):
-        ok = bool(calls) and ("人資" in ans) and any(k in ans for k in ("找不到", "沒有提到", "未提及", "沒有相關"))
+        ok = bool(calls) and ("人資" in ans) and bool(re.search(r"找不到|沒有.{0,4}提到|未提及|沒有相關|沒有.{0,4}規定", ans))
         return ok, "查過且回答找不到" if ok else "應查詢後回答找不到"
     # 「看過全文」：搜尋附了該文件全文，或有呼叫 read_specific_document 讀它
     read = any(f"[[{item['expect_file']}]]\n" in o and ("《全文》" in o or o.startswith("[[")) for o in out.get("outputs", []))
@@ -101,6 +140,8 @@ async def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("question", nargs="?")
     ap.add_argument("--eval", action="store_true")
+    ap.add_argument("--questions", default=str(ROOT / "eval" / "questions.yaml"))
+    ap.add_argument("--out", default=str(ROOT / "eval" / "results.json"))
     a = ap.parse_args()
     async with streamablehttp_client(MCP_URL) as (r, w, _), ClientSession(r, w) as session:
         await session.initialize()
@@ -108,7 +149,7 @@ async def main() -> None:
             out = await ask(session, a.question or "婚假怎麼請？")
             print(out["answer"])
             return
-        items = yaml.safe_load((ROOT / "eval" / "questions.yaml").read_text(encoding="utf-8"))
+        items = yaml.safe_load(Path(a.questions).read_text(encoding="utf-8"))
         results, passed = [], 0
         for it in items:
             t0 = time.time()
@@ -122,9 +163,11 @@ async def main() -> None:
             dt = time.time() - t0
             print(f"{'✅' if ok else '❌'} {it['q']}  ({dt:.1f}s, {len(out['calls'])} 次工具)  {why}")
             results.append({"q": it["q"], "ok": ok, "why": why, "seconds": round(dt, 1),
-                            "calls": out["calls"], "answer": out["answer"]})
+                            "calls": out["calls"], "answer": out["answer"],
+                            "nudged": out.get("nudged"), "calc_nudged": out.get("calc_nudged")})
         print(f"\n通過 {passed}/{len(items)}")
-        (ROOT / "eval" / "results.json").write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
+        Path(a.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(a.out).write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from .calc import calculate as _calculate
+from .cn_numbers import annotate as _annotate
 from .indexer import PolicyIndex, Settings
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -43,6 +44,8 @@ mcp = FastMCP(
 )
 
 
+NUM_ANNOTATE = os.getenv("NUM_ANNOTATE", "0") == "1"  # 中文數字加註阿拉伯數字
+_fmt = _annotate if NUM_ANNOTATE else (lambda t: t)
 FULLTEXT_DOCS = int(os.getenv("FULLTEXT_DOCS", "1"))      # small-to-big：前幾名直接附全文
 FULLTEXT_MAX_CHARS = int(os.getenv("FULLTEXT_MAX_CHARS", "4000"))
 
@@ -60,9 +63,9 @@ def search_related_policies(query: str) -> str:
         r = index.read(h["file"]) if i <= FULLTEXT_DOCS else None
         if r and len(r[1]) <= FULLTEXT_MAX_CHARS:
             # Small-to-big：用小切塊找、回傳整份文件，條件與但書不會被切掉
-            out.append(f"{head}\n《全文》[[{r[0]}]]\n{r[1]}")
+            out.append(f"{head}\n《全文》[[{r[0]}]]\n{_fmt(r[1])}")
         else:
-            snip = "\n".join(f"  > {s}" for s in h["snippets"])
+            snip = "\n".join(f"  > {_fmt(s)}" for s in h["snippets"])
             out.append(f"{head}\n《片段》（需要完整條文請用 read_specific_document）\n{snip}")
     return "\n\n".join(out)
 
@@ -74,7 +77,7 @@ def read_specific_document(filename: str) -> str:
     if r is None:
         return f"找不到「{filename}」。目前的文件：{', '.join(index.files())}"
     name, text = r
-    return f"[[{name}]]\n\n{text}"
+    return f"[[{name}]]\n\n{_fmt(text)}"
 
 
 @mcp.tool()

@@ -137,6 +137,58 @@ flowchart LR
 - 條文寫「前二小時按平日每小時工資加給三分之一」。模型只算了「加給」的部分（200 × 1/3 × 2 + 200 × 2/3 × 1 = 266.67），驗收預期的是含原本工資的總額（866.67）
 - 兩種讀法在字面上都說得通。真實規章也常有這種問題，這類題目應該在條文裡寫清楚（例如「每小時給付 1⅓ 倍工資」），或在回答時把兩種讀法都說明。示範資料保留原文，不為了過關改題目
 
+## 自動改進循環（仿 Harness²，`harness/`）
+
+手動調了十幾個版本之後，把「改 → 測 → 留下有用的」這個循環做成固定流程，概念來自 [Harness²](https://github.com/google-research/harness2)：不動模型權重，只改模型外面那一圈（prompt、工具、檢查規則）。
+
+```mermaid
+flowchart LR
+    F["錯題<br/>（只看調整組）"] --> P["Propose<br/>提出 2 個候選改法"]
+    X[(EXPERIENCE.md<br/>經驗庫)] --> P
+    P --> PR["Probe<br/>每個候選跑調整組 32 題"]
+    PR --> C["Compose<br/>分數高的留下<br/>有用的改法合併"]
+    C --> X
+    C -->|下一輪| F
+    C --> HO["最後才跑隱藏組 17 題<br/>確認沒有過擬合"]
+```
+
+| 元件 | 檔案 | 說明 |
+|---|---|---|
+| 候選 harness | `harness/candidates/<名稱>/` | `system_prompt.md`、`env.yaml`（開關）、`PROPOSAL.md`（改了什麼、根據哪些錯題） |
+| 可以改的範圍 | `env.yaml` | `THINK`（思考模式）、`CALC_CHECK`（驗算檢查）、`RECHECK_MODE`（inline 同對話重算／fresh 開新對話只給文件）、`RECHECK_THINK`（只在驗算時思考）、`NUMERIC_TRIGGER`（問題有數字也觸發驗算） |
+| 調整組 | `eval/tune.yaml`（32 題） | 改進循環**只能看這組的錯題** |
+| 隱藏組 | `eval/holdout.yaml`（17 題） | 題型類似但題目不同；`loop.py fails --split holdout` 會直接拒絕，避免偷看 |
+| 成績表 | `harness/scoreboard.csv` | 每次 probe 一列：候選、組別、通過數、平均秒數 |
+| 經驗庫 | `harness/EXPERIENCE.md` | 每次改動的 change / verdict / lesson，下一輪 Propose 先讀 |
+
+**誰來 Propose？** 這一版由開發用的 AI 助理（Claude）讀錯題和經驗庫後寫候選，`loop.py` 負責跑分和記錄；之後可以換成 API 自動呼叫。**目標**：不開思考模式（約 4 秒一題）的前提下，把正確率拉到接近全程思考模式（約 20 秒一題）。
+
+### 第一次跑的結果（3 輪，詳細過程在 `harness/EXPERIENCE.md`）
+
+| 候選 | 改了什麼 | 調整組 32 題 | 隱藏組 17 題 | 平均秒數 |
+|---|---|---|---|---|
+| v0 | 起點：手動調好的 prompt，快速模式 | 25 | 14 | 4.2 |
+| v1a | 快慢雙路徑：問題涉及數字才驗算；驗算開新對話、不給草稿、只在驗算時思考 | 29 | | 7.5 |
+| v1b | Prompt：稱謂對照（奶奶→祖父母）、金額千分位、找不到固定句 | 27 | | 4.1 |
+| v2 | Compose：v1a ＋ v1b ＋ 查文件檢查改嚴格 | 30 | | 7.5 |
+| **v3a** | 驗算 prompt：門檻結論要跟計算機一致、中文數字核對位數、不補文件沒寫的流程 | **32** | **16** | 7.7 |
+| v3b | v3a ＋ 工具端把中文數字加註成「四千（4,000）元」 | 28（淘汰） | | 7.4 |
+| vthink | 參考上限：全程思考模式 | | 17 | 19.5 |
+
+- 隱藏組也從 14 進步到 16，改動不是只背了調整組
+- v3a 用約 40% 的時間拿到接近全程思考的分數
+- v3b 被淘汰：模型會把「六（6）日」這種加註格式照抄進答案。看起來合理的結構性改法也要實測
+- v3a 在隱藏組錯的 1 題（採購問題被當成無關而拒答）是調整組沒涵蓋的新類型；下一輪要把這類問法補進調整組，並換一批新的隱藏組
+
+```bash
+python harness/loop.py new v1a --from v0      # 複製候選
+python harness/loop.py probe v1a              # 跑調整組
+python harness/loop.py fails v1a              # 看錯題（只限調整組）
+python harness/loop.py diff v0 v1a            # 逐題比較
+python harness/loop.py probe v2 --split holdout   # 最後才跑隱藏組
+python harness/loop.py rescore v2 --split tune     # 評分規則修正後，用存下的答案重新評分
+```
+
 ## 快速開始
 
 需要：Ollama、Docker Desktop、[uv](https://docs.astral.sh/uv/)

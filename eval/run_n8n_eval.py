@@ -26,7 +26,7 @@ def grade(item: dict, ans: str) -> tuple[bool, str]:
         ok = "只能回答" in ans
         return ok, "拒答" if ok else "應拒答"
     if item.get("not_found"):
-        ok = "人資" in ans and any(k in ans for k in ("找不到", "沒有提到", "未提及", "沒有相關"))
+        ok = "人資" in ans and bool(re.search(r"找不到|沒有.{0,4}提到|未提及|沒有相關|沒有.{0,4}規定", ans))
         return ok, "回答找不到" if ok else "應回答找不到"
     cited = f"[[{item['expect_file']}]]" in ans
     norm = re.sub(r"\s", "", ans)

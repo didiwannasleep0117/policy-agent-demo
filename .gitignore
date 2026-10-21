@@ -4,4 +4,5 @@ __pycache__/
 n8n/data/
 n8n/OWNER_LOGIN.txt
 eval/results*.json
+.cache_ann/
 *.log

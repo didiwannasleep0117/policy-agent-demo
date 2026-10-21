@@ -1,0 +1,544 @@
+[
+ {
+  "q": "婚假怎麼請？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True",
+  "seconds": 4.4,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "婚假怎麼請"
+    }
+   ]
+  ],
+  "answer": "婚假的申請方式如下：\n\n- **婚假天數**：結婚者給予婚假八日，工資照給 [[請假管理辦法.docx]]。\n- **申請時間**：婚假應自結婚登記日前十日起三個月內請畢，經主管同意得分次申請 [[請假管理辦法.docx]]。\n- **申請程序**：請假需於 HR 系統「星芽人」線上申請，婚假須於三日前提出並於事後補附結婚證明 [[請假管理辦法.docx]]。\n\n📄 參考文件：  \n[[請假管理辦法.docx]]",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "我下個月結婚，公司有結婚禮金嗎？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True",
+  "seconds": 4.0,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "結婚禮金"
+    }
+   ]
+  ],
+  "answer": "是的，公司有結婚禮金。根據規定，同仁結婚者，由公司致贈結婚禮金新台幣六千元；若雙方皆為本公司員工，各自申請 [[婚喪喜慶補助辦法.pdf]]。\n\n申請方式如下：\n- 準備結婚證書等相關證明文件。\n- 在事實發生日起三個月內，向人資部提出申請。\n- 補助款項於核准後次月薪資一併發放。\n\n📄 參考文件：  \n[[婚喪喜慶補助辦法.pdf]]",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "出差住飯店一晚最多可以報多少？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 10.1,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "出差住飯店一晚最多可以報多少"
+    }
+   ]
+  ],
+  "answer": "出差住飯店一晚最多可報新台幣三千元 [[差旅與報銷作業辦法.docx]]。\n\n✅ 具體規定：\n- **國內出差**：住宿費每晚上限為 **新台幣三千元**，此為固定標準，無額外計算公式。\n- **國外出差**：住宿費依「國外出差日支標準表」辦理，但該表未在現有文件中顯示詳細數字。\n\n📌 注意：此上限僅適用於國內出差，國外出差標準需參照另附的「國外出差日支標準表」。",
+  "nudged": false,
+  "calc_nudged": true
+ },
+ {
+  "q": "加班費可以換成補休嗎？要多久內休完？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True",
+  "seconds": 2.8,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "加班費可以換成補休嗎？要多久內休完？"
+    }
+   ]
+  ],
+  "answer": "是的，加班費可以選擇以補休代替，補休應於加班事實發生後六個月內休畢，屆期未休畢者依原加班費標準發給工資。\n\n📄 參考文件：  \n[[加班管理辦法.pdf]]",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "公司附近有健身房優惠嗎？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True",
+  "seconds": 2.9,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "公司附近有健身房優惠嗎"
+    }
+   ]
+  ],
+  "answer": "公司附近有健身房優惠，詳情如下：\n\n- **好眠健身房**：月費優惠價新台幣九百九十元，位於公司對面 [[特約商店清單.xlsx]]。\n\n如需申請或進一步資訊，可聯繫人資部或至公司公告欄查看詳細說明。\n\n📄 參考文件：[[特約商店清單.xlsx]]",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "考績拿 A 的話年終大概幾個月？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 8.5,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "考績拿 A 的話年終大概幾個月"
+    }
+   ]
+  ],
+  "answer": "考績拿 A 等的年終獎金計算方式為：  \n**1.5 倍 × 1.5 個月 = 2.25 個月** [[考績管理辦法.docx]]  \n\n即年終約發放 **2.25 個月薪資**（換算成月份為 2 個月零 7.5 天）。  \n此計算已包含「以一點五個月薪資為基準，A 等乘以一點五倍」的規定。",
+  "nudged": false,
+  "calc_nudged": true
+ },
+ {
+  "q": "我 35 歲，可以每年做健康檢查嗎？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 13.0,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "健康檢查"
+    }
+   ]
+  ],
+  "answer": "根據《員工健康檢查辦法.pdf》規定，未滿四十歲之同仁每兩年得接受健康檢查一次，四十歲以上者每年一次。您目前35歲，屬於「未滿四十歲」的條件，因此每兩年可申請一次健康檢查，每年不可申請。  \n\n📄 參考文件：  \n[[員工健康檢查辦法.pdf]]",
+  "nudged": false,
+  "calc_nudged": true
+ },
+ {
+  "q": "員工旅遊補助沒用完可以留到明年嗎？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True",
+  "seconds": 3.1,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "員工旅遊補助"
+    }
+   ]
+  ],
+  "answer": "員工旅遊補助的額度是當年度使用，**不得遞延至次年度**，也不得折換現金。因此，未使用的補助金額無法留到明年使用。\n\n如果您有其他關於員工旅遊補助的問題，例如申請方式或相關規定，歡迎繼續詢問！\n\n📄 參考文件：[[員工旅遊補助辦法.pdf]]",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "那結婚有禮金嗎？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True",
+  "seconds": 8.8,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "結婚有禮金嗎"
+    }
+   ]
+  ],
+  "answer": "根據公司規定，結婚是有禮金的，詳細資訊如下：\n\n- **結婚禮金金額**：同仁結婚者，由公司致贈結婚禮金新台幣六千元；若雙方皆為本公司員工，各自申請 [[婚喪喜慶補助辦法.pdf]]。\n- **申請方式**：需於結婚事實發生日起三個月內，檢附結婚證書影本向人資部提出申請，逾期不予受理 [[婚喪喜慶補助辦法.pdf]]。\n- **發放時間**：核准後次月薪資一併發放 [[婚喪喜慶補助辦法.pdf]]。\n\n📄 參考文件：  \n[[婚喪喜慶補助辦法.pdf]]",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "我月薪四萬，考績拿 B+，年終獎金大概多少錢？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 12.4,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "年終獎金計算方式"
+    }
+   ]
+  ],
+  "answer": "月薪4萬，考績B+的年終獎金計算方式如下：  \n**年終獎金 = 月薪 × 1.5 × 1.2**  \n即 40,000 × 1.5 × 1.2 = 72,000元 [[考績管理辦法.docx]]  \n\n說明：  \n1. 年終獎金以「1.5個月薪資」為基準 [[考績管理辦法.docx]]  \n2. B+等第乘以「1.2倍」[[考績管理辦法.docx]]  \n3. 無其他年資或職級門檻條件影響計算  \n\n📄 參考文件：[[考績管理辦法.docx]]",
+  "nudged": false,
+  "calc_nudged": true
+ },
+ {
+  "q": "我時薪 200 元，平日下班後加班 3 小時，加班費是多少？",
+  "ok": false,
+  "why": "看過全文=False 引用正確=False 內容正確=False",
+  "seconds": 3.2,
+  "calls": [
+   [
+    "calculate",
+    {
+     "expression": "200 * 3 * 1.3333"
+    }
+   ]
+  ],
+  "answer": "平日下班後加班 3 小時，加班費為 799.98 元。根據《勞動基準法》規定，平日加班費為時薪的 1.3333 倍，因此計算方式為 200 元 × 3 小時 × 1.3333 倍 [[勞動基準法.docx]]。",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "我 45 歲，健康檢查可以每年做嗎？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 8.8,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "健康檢查"
+    }
+   ]
+  ],
+  "answer": "根據《員工健康檢查辦法.pdf》規定，四十歲以上員工每年可接受一次健康檢查 [[員工健康檢查辦法.pdf]]。您45歲符合「四十歲以上者每年一次」的條件，因此可以每年申請健檢。",
+  "nudged": false,
+  "calc_nudged": true
+ },
+ {
+  "q": "公司有提供停車位嗎？",
+  "ok": true,
+  "why": "查過且回答找不到",
+  "seconds": 2.0,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "公司有提供停車位嗎"
+    }
+   ]
+  ],
+  "answer": "目前的規章文件裡找不到關於公司提供停車位的資訊，建議直接聯繫人資部確認。",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "今天台北天氣如何？",
+  "ok": true,
+  "why": "拒答且未查工具",
+  "seconds": 0.8,
+  "calls": [],
+  "answer": "抱歉，我只能回答星芽科技的規章與福利問題喔。",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "奶奶過世可以請幾天喪假？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 9.3,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "喪假天數"
+    }
+   ]
+  ],
+  "answer": "員工的奶奶過世屬於「祖父母喪亡」的情況，根據《請假管理辦法.docx》第三條規定，給予喪假六日，工資照給，得於百日內分次申請。\n\n**申請方式**：  \n1. 透過 HR 系統「星芽人」線上申請喪假。  \n2. 需於事後補附死亡證明等相關證明文件。  \n\n📄 參考文件：  \n[[請假管理辦法.docx]]",
+  "nudged": false,
+  "calc_nudged": true
+ },
+ {
+  "q": "病假一年最多幾天？薪水怎麼算？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 13.1,
+  "calls": [
+   [
+    "list_all_filenames",
+    {}
+   ],
+   [
+    "search_related_policies",
+    {
+     "query": "病假 年度上限"
+    }
+   ]
+  ],
+  "answer": "病假一年最多可請30日，工資折半發給。  \n**詳細說明：**  \n- **年度上限**：未住院者一年內合計不超過三十日 [[請假管理辦法.docx]]  \n- **薪水計算**：工資折半發給，即發放50%的基礎工資 [[請假管理辦法.docx]]  \n\n若需申請，請於「星芽人」系統填寫病假單，並附醫療證明（連續三日以上需提供）[[請假管理辦法.docx]]。  \n\n📄 參考文件：  \n[[請假管理辦法.docx]]",
+  "nudged": false,
+  "calc_nudged": true
+ },
+ {
+  "q": "太太生雙胞胎，生育補助可以領多少？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 12.5,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "生育補助金"
+    }
+   ]
+  ],
+  "answer": "生育補助金針對雙胞胎的情況，依據《婚喪喜慶補助辦法.pdf》第三條規定：  \n**每胎補助新台幣八千元，雙胞胎以上依胎數加倍**。  \n\n### 計算方式  \n- 基準金額：8,000元/胎  \n- 胎數：2胎（雙胞胎）  \n- 總補助 = 8,000 × 2 = **16,000元**  \n\n### 申請條件  \n1. 需於分娩事實發生日起三個月內，檢附出生證明等文件申請 [[婚喪喜慶補助辦法.pdf]]。  \n2. 補助款項於核准後次月薪資一併發放。  \n\n📄 參考文件：  \n[[婚喪喜慶補助辦法.pdf]]",
+  "nudged": false,
+  "calc_nudged": true
+ },
+ {
+  "q": "出國出差要飛 10 小時，可以坐豪華經濟艙嗎？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 10.5,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "出國出差要飛 10 小時，可以坐豪華經濟艙嗎？"
+    }
+   ]
+  ],
+  "answer": "員工出國出差飛行時間達10小時，符合申請豪華經濟艙的條件。  \n**判斷公式**：飛行時間 > 8小時 → 可申請豪華經濟艙 [[差旅與報銷作業辦法.docx]]  \n\n**申請方式**：  \n1. 提前向人資部提交出差申請單，於「星芽人」系統註明航班資訊。  \n2. 旅途中保留機票明細，歸隊後依流程辦理報銷。  \n\n📄 參考文件：  \n[[差旅與報銷作業辦法.docx]]",
+  "nudged": false,
+  "calc_nudged": true
+ },
+ {
+  "q": "每個月加班時數有上限嗎？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True",
+  "seconds": 2.7,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "每月加班時數上限"
+    }
+   ]
+  ],
+  "answer": "每月加班時數有上限，上限為 **46小時**，此為平日延長工時的總計，包含所有加班時數。若加班時數超過此上限，則需依照公司規定進行調整或補休。\n\n📄 參考文件：  \n[[加班管理辦法.pdf]]",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "加班到晚上十點，回家的計程車費可以報嗎？上限多少？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 11.3,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "加班計程車費報銷"
+    }
+   ]
+  ],
+  "answer": "加班至晚上十點可報銷計程車費，每月上限新台幣兩千元。  \n**計算方式**：加班時間達晚上九點以後 → 符合條件 → 報銷上限為 2,000 元 [[加班管理辦法.pdf]]。\n\n📄 參考文件：  \n[[加班管理辦法.pdf]]",
+  "nudged": false,
+  "calc_nudged": true
+ },
+ {
+  "q": "考績拿 A 的人數有限制嗎？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True",
+  "seconds": 4.6,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "考績拿 A 的人數有限制"
+    }
+   ]
+  ],
+  "answer": "考績拿 A 的人數是有限制的，以部門人數的百分之十五為上限 [[考績管理辦法.docx]]。\n\n如需了解更多關於考績的細節，例如考核方式、年終獎金計算方式等，可參考以下內容：\n\n- 考核方式：同仁先於「星芽人」系統完成自評，再由直屬主管評核並進行一對一面談，最後經部門主管核定 [[考績管理辦法.docx]]。\n- 年終獎金：以一點五個月薪資為基準，A 等乘以一點五倍 [[考績管理辦法.docx]]。\n\n📄 參考文件：  \n[[考績管理辦法.docx]]",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "對考績結果不服的話可以怎麼辦？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True",
+  "seconds": 3.6,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "考績結果不服怎麼辦"
+    }
+   ]
+  ],
+  "answer": "對考績結果不服，可以依照以下方式處理：\n\n- **提出申覆**：同仁對考核結果有異議者，得於結果公布後十個工作日內向人資部提出申覆 [[考績管理辦法.docx]]。\n\n**申請方式**：\n1. 在結果公布後的十個工作日內，向人資部提出申覆。\n2. 申覆時需說明異議的內容與理由。\n\n📄 參考文件：  \n[[考績管理辦法.docx]]",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "我想上一堂 3 萬元的線上課程，公司最多補助多少？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 11.2,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "線上課程補助"
+    }
+   ]
+  ],
+  "answer": "公司對於線上課程的補助上限為新台幣兩萬元，此為每位正式同仁每年度的外部課程補助金額，包含線上課程。若課程費用為3萬元，僅能核銷兩萬元，剩餘部分需自行承擔。\n\n📄 參考文件：[[教育訓練補助辦法.pdf]]",
+  "nudged": false,
+  "calc_nudged": true
+ },
+ {
+  "q": "做健康檢查公司補助多少錢？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 10.5,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "健康檢查公司補助多少錢"
+    }
+   ]
+  ],
+  "answer": "公司補助健檢費用新台幣四千元，超出部分由同仁自付。[[員工健康檢查辦法.pdf]]\n\n📄 參考文件：  \n[[員工健康檢查辦法.pdf]]",
+  "nudged": false,
+  "calc_nudged": true
+ },
+ {
+  "q": "公司樓下的咖啡店有員工優惠嗎？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True",
+  "seconds": 3.4,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "員工優惠"
+    }
+   ]
+  ],
+  "answer": "公司樓下的咖啡店有員工優惠，詳情如下：\n\n- **晨光咖啡**：出示員工證可享飲品九折優惠，位於公司一樓。\n- **森林書店**：書籍九折、雜誌八折，位於公司B1。\n\n如需進一步確認或申請相關優惠，建議直接向店家出示員工證或聯繫人資部確認。\n\n📄 參考文件：[[特約商店清單.xlsx]]",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "報帳的發票統一編號要寫什麼？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True",
+  "seconds": 2.2,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "報帳的發票統一編號要寫什麼"
+    }
+   ]
+  ],
+  "answer": "報帳的發票統一編號需寫「00000000」。[[差旅與報銷作業辦法.docx]]",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "幫我寫一段 Python 的排序程式",
+  "ok": true,
+  "why": "拒答且未查工具",
+  "seconds": 0.9,
+  "calls": [],
+  "answer": "抱歉，我只能回答星芽科技的規章與福利問題喔。",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "公司有員工宿舍嗎？",
+  "ok": false,
+  "why": "應查詢後回答找不到",
+  "seconds": 1.9,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "員工宿舍"
+    }
+   ]
+  ],
+  "answer": "目前的規章文件裡沒有提到公司有提供員工宿舍的資訊。如果您有其他關於公司福利或制度的問題，歡迎隨時詢問！",
+  "nudged": false,
+  "calc_nudged": false
+ },
+ {
+  "q": "那膳雜費一天可以報多少？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被提醒先查）（被要求驗算）",
+  "seconds": 19.3,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "膳雜費"
+    }
+   ]
+  ],
+  "answer": "員工的膳雜費每日報銷上限為新台幣五百元 [[差旅與報銷作業辦法.docx]]。此為國內出差標準，若為國外出差則依「國外出差日支標準表」辦理，但問題中未提及國外出差情形，故適用國內標準。",
+  "nudged": true,
+  "calc_nudged": true
+ },
+ {
+  "q": "我到職剛滿 8 個月，今年的員工旅遊補助有多少？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 14.8,
+  "calls": [
+   [
+    "list_all_filenames",
+    {}
+   ],
+   [
+    "search_related_policies",
+    {
+     "query": "員工旅遊補助"
+    }
+   ]
+  ],
+  "answer": "到職滿8個月的員工，今年員工旅遊補助計算方式如下：\n\n**補助金額**：10,000元 × (8/12) = 6,666.67元  \n（依《員工旅遊補助辦法.pdf》第三條，到職未滿一年者按實際在職月數比例計算，全年補助限當年度使用）\n\n**注意**：需於每年12月15日前申請，逾期視同放棄 [[員工旅遊補助辦法.pdf]]。\n\n📄 參考文件：  \n[[員工旅遊補助辦法.pdf]]",
+  "nudged": false,
+  "calc_nudged": true
+ },
+ {
+  "q": "我月薪 5 萬，考績 C，年終獎金多少？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 12.0,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "年終獎金"
+    }
+   ]
+  ],
+  "answer": "月薪 5 萬，考績 C 等，年終獎金計算方式如下：  \n**年終獎金 = 月薪 × 1.5 × 0.5 = 50,000 × 1.5 × 0.5 = 37,500 元**  \n\n✅ **依據**：  \n- 考績 C 等者，年終獎金為「以一點五個月薪資為基準，乘以零點五倍」[[考績管理辦法.docx]]  \n\n📌 注意：此計算已包含基准倍数（1.5倍）與等第調整（0.5倍），無其他文件影響此結果。",
+  "nudged": false,
+  "calc_nudged": true
+ },
+ {
+  "q": "我到職 3 個月，有幾天特休？",
+  "ok": false,
+  "why": "看過全文=True 引用正確=True 內容正確=False（被要求驗算）",
+  "seconds": 13.0,
+  "calls": [
+   [
+    "list_all_filenames",
+    {}
+   ],
+   [
+    "search_related_policies",
+    {
+     "query": "特休"
+    }
+   ]
+  ],
+  "answer": "特休天數計算如下：  \n- 根據《請假管理辦法.docx》第七條，到職滿6個月未滿1年者給予3日特別休假 [[請假管理辦法.docx]]。  \n- 您到職3個月，未達6個月門檻，因此**特休天數為3日**。  \n\n📄 參考文件：  \n[[請假管理辦法.docx]]",
+  "nudged": false,
+  "calc_nudged": true
+ }
+]
