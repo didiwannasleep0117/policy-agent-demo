@@ -28,6 +28,9 @@ MODEL = os.getenv("CHAT_MODEL", "qwen3:8b")
 SYSTEM = (ROOT / "agent" / "system_prompt.md").read_text(encoding="utf-8")
 MAX_STEPS = 6
 THINK = os.getenv("THINK", "0") == "1"  # qwen3 思考模式：較準但較慢
+CALC_CHECK = os.getenv("CALC_CHECK", "1") == "1"  # 答案有算式卻沒用計算機 → 退回驗算
+# 「數字 運算子 數字」，例如 40,000 × 1.2、200元 × 3
+_ARITH = re.compile(r"\d[\d,.]*\s*(?:元|小時|個月|倍|日)?\s*[×xX*÷/+]\s*\(?\s*\d")
 
 
 async def ask(session: ClientSession, question: str, verbose: bool = True, history: list | None = None) -> dict:
@@ -41,8 +44,9 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
     calls: list[tuple[str, dict]] = []
     outputs: list[str] = []
     nudged = False
+    calc_nudged = False
     async with httpx.AsyncClient(timeout=300) as http:
-        for _ in range(MAX_STEPS):
+        for _ in range(MAX_STEPS + 2):
             r = await http.post(f"{OLLAMA_URL}/api/chat", json={
                 "model": MODEL, "messages": msgs, "tools": ollama_tools, "stream": False,
                 "think": THINK, "options": {"temperature": 0},
@@ -52,12 +56,18 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
             msgs.append(msg)
             if not msg.get("tool_calls"):
                 ans = msg.get("content", "").strip()
-                # Harness 檢查：沒查任何文件就下結論（又不是拒答）→ 退回去要求先查一次
+                # Harness 檢查 1：沒查任何文件就下結論（又不是拒答）→ 退回去要求先查一次
                 if not calls and not nudged and "只能回答" not in ans:
                     nudged = True
                     msgs.append({"role": "user", "content": "（系統檢查）你還沒有查詢任何文件。請先用 search_related_policies 查詢後再回答。"})
                     continue
-                return {"answer": ans, "calls": calls, "outputs": outputs, "nudged": nudged}
+                # Harness 檢查 2：答案裡有心算的算式，卻沒用計算機 → 要求用 calculate 驗算
+                used_calc = any(n.endswith("calculate") for n, _ in calls)
+                if CALC_CHECK and not used_calc and not calc_nudged and _ARITH.search(ans):
+                    calc_nudged = True
+                    msgs.append({"role": "user", "content": "（系統檢查）你的回答裡有計算，但沒有使用 calculate 工具。請先重新確認條文裡的公式（基準、倍數、分段），再用 calculate 算出每一個數字，最後重寫答案。"})
+                    continue
+                return {"answer": ans, "calls": calls, "outputs": outputs, "nudged": nudged, "calc_nudged": calc_nudged}
             for tc in msg["tool_calls"]:
                 name, args = tc["function"]["name"], tc["function"].get("arguments") or {}
                 calls.append((name, args))
@@ -84,7 +94,7 @@ def grade(item: dict, out: dict) -> tuple[bool, str]:
     norm = re.sub(r"\s", "", ans)
     content = any(all(k.replace(" ", "") in norm for k in group) for group in item["must_contain"])
     ok = read and cited and content
-    return ok, f"看過全文={read} 引用正確={cited} 內容正確={content}" + ("（被提醒先查）" if out.get("nudged") else "")
+    return ok, f"看過全文={read} 引用正確={cited} 內容正確={content}" + ("（被提醒先查）" if out.get("nudged") else "") + ("（被要求驗算）" if out.get("calc_nudged") else "")
 
 
 async def main() -> None:

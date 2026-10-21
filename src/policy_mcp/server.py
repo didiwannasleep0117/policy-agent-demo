@@ -18,6 +18,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
+from .calc import calculate as _calculate
 from .indexer import PolicyIndex, Settings
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -80,6 +81,14 @@ def read_specific_document(filename: str) -> str:
 def list_all_filenames() -> str:
     """列出目前已索引的所有規章與福利文件檔名。"""
     return "\n".join(index.files()) or "目前沒有文件。"
+
+
+@mcp.tool()
+def calculate(expression: str) -> str:
+    """計算機。任何計算或數字比較都用這個工具，不要自己心算。
+    支援 + - * / ** ( )、比較（>= <= > < ==）、and / or、round/min/max/abs。
+    例：「1.5 * 1.5」「35 >= 40」「30000 / 30 * 8」。"""
+    return _calculate(expression)
 
 
 def _background_sync(interval: int) -> None:
