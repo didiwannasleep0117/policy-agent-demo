@@ -94,6 +94,19 @@ def calculate(expression: str) -> str:
     return _calculate(expression)
 
 
+@mcp.custom_route("/docs/{name}", methods=["GET"])
+async def open_doc(request):
+    """讓聊天視窗的「參考文件」卡片可以點開原始檔（只開放 DOCS_DIR 裡的檔案）。"""
+    from urllib.parse import unquote
+    from starlette.responses import FileResponse, PlainTextResponse
+    name = Path(unquote(request.path_params["name"])).name
+    path = cfg.docs_dir / name
+    if not path.is_file():
+        return PlainTextResponse("not found", status_code=404)
+    inline = path.suffix.lower() == ".pdf"
+    return FileResponse(path, filename=name, content_disposition_type="inline" if inline else "attachment")
+
+
 def _background_sync(interval: int) -> None:
     stop = threading.Event()
     while not stop.wait(interval):

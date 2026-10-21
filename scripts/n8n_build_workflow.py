@@ -21,6 +21,15 @@ from n8n_admin import ROOT, WID, WEBHOOK, login, req  # noqa: E402
 
 PROMPT = (ROOT / "agent" / "system_prompt.md").read_text(encoding="utf-8")
 TRIGGER = "員工提問（Chat）"
+# 聊天頁在瀏覽器開，所以用 localhost（不是 docker 內部的 host.docker.internal）
+DOC_BASE = __import__("os").getenv("DOC_BASE", "http://localhost:8000")
+# 聊天視窗裡把參考文件連結畫成檔案卡片
+CHAT_CSS = """
+.chat-message-from-bot a[href*="/docs/"] { display:inline-flex; align-items:center; gap:6px; padding:6px 12px;
+  margin:2px 0; border:1px solid #d0d7de; border-radius:8px; background:#f6f8fa; color:#1f2328;
+  text-decoration:none; font-size:0.92em; }
+.chat-message-from-bot a[href*="/docs/"]:hover { background:#eaeef2; }
+"""
 THINK_NODE = __import__("os").getenv("THINK_NODE", "ollama")  # ollama | openai
 
 CHECK_JS = r"""
@@ -47,8 +56,20 @@ return [{ json: {
 
 FINAL_JS = r"""
 // 統一輸出給聊天視窗：驗算過就用驗算後的答案
+// 引用格式 [[檔名]] 是給評分和程式看的；給人看時換成可以點開的「參考文件」卡片
 const it = $input.first().json;
-return [{ json: { output: (it.output ?? it.draft ?? '').trim() } }];
+let text = (it.output ?? it.draft ?? '').trim();
+const files = [...new Set([...text.matchAll(/\[\[([^\]]+)\]\]/g)].map(m => m[1].trim()))];
+text = text
+  .replace(/^.*📄\s*參考文件[:：]?.*$/gm, '')      // 模型自己寫的參考文件行
+  .replace(/[（(]?\s*\[\[[^\]]+\]\]\s*[）)]?/g, '')  // 內文的 [[檔名]]
+  .replace(/\n{3,}/g, '\n\n').trim();
+const icon = f => /\.pdf$/i.test(f) ? '📕' : /\.xlsx?$/i.test(f) ? '📗' : '📘';
+if (files.length) {
+  text += '\n\n**參考文件**\n\n' + files.map(f =>
+    `[${icon(f)} ${f}](DOC_BASE_URL/docs/${encodeURIComponent(f)})`).join('\n\n');
+}
+return [{ json: { output: text, cited: files } }];
 """
 
 # 驗算 prompt 和 Python 版共用同一份檔案（改進循環選出的版本會複製到 agent/recheck_prompt.md）
@@ -103,7 +124,7 @@ def main() -> None:
          "parameters": {"public": True, "mode": "hostedChat",
                         "initialMessages": "嗨！我是小芽 🌱\n星芽科技的規章與福利小幫手，請假、補助、報銷都可以問我～",
                         "options": {"title": "小芽 · 星芽科技規章小幫手", "subtitle": "示範用虛構公司，所有文件皆為假資料",
-                                    "inputPlaceholder": "例如：婚假怎麼請？"}}},
+                                    "inputPlaceholder": "例如：婚假怎麼請？", "customCss": CHAT_CSS}}},
         {"id": str(uuid.uuid4()), "name": "小芽 AI Agent", "type": "@n8n/n8n-nodes-langchain.agent",
          "typeVersion": 3.1, "position": [260, 0],
          "parameters": {"promptType": "auto", "options": {"systemMessage": PROMPT, "maxIterations": 8,
@@ -128,7 +149,7 @@ def main() -> None:
         model("Qwen3-8B（思考）", [980, 140], think=True),
         mcp("policy_check", [1140, 140]),
         {"id": str(uuid.uuid4()), "name": "回覆", "type": "n8n-nodes-base.code", "typeVersion": code_v,
-         "position": [1320, 0], "parameters": {"jsCode": FINAL_JS.strip()}},
+         "position": [1320, 0], "parameters": {"jsCode": FINAL_JS.strip().replace("DOC_BASE_URL", DOC_BASE)}},
     ]
     main_ = lambda n: {"node": n, "type": "main", "index": 0}  # noqa: E731
     conns = {

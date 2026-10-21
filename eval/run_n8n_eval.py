@@ -28,7 +28,9 @@ def grade(item: dict, ans: str) -> tuple[bool, str]:
     if item.get("not_found"):
         ok = bool(re.search(r"人資|財務", ans)) and bool(re.search(r"找不到|沒有.{0,4}提到|未提及|沒有相關|沒有.{0,4}規定|未.{0,2}明確|沒有.{0,2}明確", ans))
         return ok, "回答找不到" if ok else "應回答找不到"
-    cited = f"[[{item['expect_file']}]]" in ans
+    # n8n 回覆把 [[檔名]] 換成「參考文件」卡片連結（/docs/<檔名>），兩種都算
+    from urllib.parse import quote
+    cited = f"[[{item['expect_file']}]]" in ans or f"/docs/{quote(item['expect_file'])}" in ans
     norm = re.sub(r"\s", "", ans)
     content = any(all(k.replace(" ", "") in norm for k in g) for g in item["must_contain"])
     return cited and content, f"引用正確={cited} 內容正確={content}"
