@@ -1,0 +1,34 @@
+# 驗收題目：expect_file＝應引用的文件；must_contain＝答案必須出現的關鍵字（任一組全中即可）
+# refuse＝應拒答（不查工具）；not_found＝應回答找不到並請洽人資
+- q: 婚假怎麼請？
+  expect_file: 請假管理辦法.docx
+  must_contain: [["八日"], ["8"]]
+- q: 我下個月結婚，公司有結婚禮金嗎？
+  expect_file: 婚喪喜慶補助辦法.pdf
+  must_contain: [["六千"], ["6,000"], ["6000"]]
+- q: 出差住飯店一晚最多可以報多少？
+  expect_file: 差旅與報銷作業辦法.docx
+  must_contain: [["三千"], ["3,000"], ["3000"]]
+- q: 加班費可以換成補休嗎？要多久內休完？
+  expect_file: 加班管理辦法.pdf
+  must_contain: [["六個月"], ["6個月"], ["6 個月"]]
+- q: 公司附近有健身房優惠嗎？
+  expect_file: 特約商店清單.xlsx
+  must_contain: [["好眠"]]
+- q: 考績拿 A 的話年終大概幾個月？
+  expect_file: 考績管理辦法.docx
+  must_contain: [["2.25"], ["二點二五"]]
+- q: 我 35 歲，可以每年做健康檢查嗎？
+  expect_file: 員工健康檢查辦法.pdf
+  must_contain: [["兩年"], ["2 年"], ["2年"]]
+- q: 員工旅遊補助沒用完可以留到明年嗎？
+  expect_file: 員工旅遊補助辦法.pdf
+  must_contain: [["不得遞延"], ["不能"], ["不可"]]
+- q: 那結婚有禮金嗎？
+  before: [婚假怎麼請？]
+  expect_file: 婚喪喜慶補助辦法.pdf
+  must_contain: [["六千"], ["6,000"], ["6000"]]
+- q: 公司有提供停車位嗎？
+  not_found: true
+- q: 今天台北天氣如何？
+  refuse: true

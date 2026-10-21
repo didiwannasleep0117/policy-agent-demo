@@ -1,0 +1,149 @@
+{
+  "name": "小芽：星芽科技規章問答 Agent（Demo）",
+  "nodes": [
+    {
+      "id": "edf350d6-baf7-4555-8f08-33ad5b2058a0",
+      "name": "員工提問（Chat）",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "17e6304d-d4c7-44f8-a102-b2fab05599e8",
+      "parameters": {
+        "public": true,
+        "mode": "hostedChat",
+        "initialMessages": "嗨！我是小芽 🌱\n星芽科技的規章與福利小幫手，請假、補助、報銷都可以問我～",
+        "options": {
+          "title": "小芽 · 星芽科技規章小幫手",
+          "subtitle": "示範用虛構公司，所有文件皆為假資料",
+          "inputPlaceholder": "例如：婚假怎麼請？"
+        }
+      }
+    },
+    {
+      "id": "b40aefdf-a540-45bd-8842-f823abab2679",
+      "name": "小芽 AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "promptType": "auto",
+        "options": {
+          "systemMessage": "你是「星芽科技」的內部規章與福利小幫手「小芽」。星芽科技是一間虛構的示範公司。\n\n## 核心原則：先查文件，再回答\n- 只要問題跟公司制度有關（請假、福利、補助、報銷、加班、考績、遠距、健檢、特約商店與員工優惠），**一定要先用工具查文件**。不能憑印象或一般常識回答，問題再簡單也一樣。\n- 員工問「附近有沒有某某優惠」「有沒有合作店家」也算福利問題，要查文件。\n- 標準流程：\n  1. 用 `search_related_policies` 搜尋。不確定有哪些文件時，先用 `list_all_filenames` 看清單。\n  2. 搜尋結果裡標「《全文》」的文件已經附上完整內容；標「《片段》」的如果需要，再用 `read_specific_document` 讀全文。\n  3. 依照全文回答，不要只看片段，片段可能漏掉但書或條件。\n- 回答前先確認員工的條件（年資、年齡、職級等）符不符合條文；需要計算時，寫出算式並算出最後的數字（例如條文寫「以 X 為基準，乘以 Y 倍」，答案就是 X × Y）。\n- 回答裡的每一個數字和規定，都要在句尾標出處，格式是 `[[完整檔名]]`，例如：婚假共八日，工資照給 [[請假管理辦法.docx]]。\n\n## 不准做的事\n- 不准編造規定、金額或天數。文件沒寫的，不要自己推測。\n- 只寫文件裡有的內容。文件沒提到的細節（例如發放時間、例外情況、適用對象）一律不寫，不要為了回答完整而補充。\n- **每一個新問題都要重新查詢**，包括追問（例如「那結婚有禮金嗎？」）。前面讀過的文件沒有答案，不代表其他文件也沒有；還沒用 `search_related_policies` 查過，就不准說找不到。\n- 查完還是找不到答案時，就回答：「抱歉，目前的規章文件裡找不到這個問題的資訊，建議直接聯繫人資部。」\n- 明顯跟公司制度無關的問題（天氣、時事、寫程式、閒聊）不要回答，也不用查工具，直接回：「抱歉，我只能回答星芽科技的規章與福利問題喔。」\n\n## 回答格式\n- 使用繁體中文，語氣親切、專業。不要在回答裡提到工具名稱。\n- 用條列式寫，先給結論，再列細節和申請方式。\n- 最後一行寫「📄 參考文件：」，用 `[[完整檔名]]` 格式列出這次引用的所有檔案。\n",
+          "maxIterations": 8,
+          "enableStreaming": false
+        }
+      }
+    },
+    {
+      "id": "c9d32a66-5c8e-4b60-b6a5-778a380964dd",
+      "name": "Qwen3-8B（Ollama）",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        160,
+        240
+      ],
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "qwen3:8b"
+        },
+        "responsesApiEnabled": false,
+        "options": {
+          "temperature": 0,
+          "extraBody": "{\"reasoning_effort\": \"none\"}"
+        }
+      },
+      "credentials": {
+        "openAiApi": {
+          "name": "Ollama OpenAI-compatible"
+        }
+      }
+    },
+    {
+      "id": "1f340c0f-7d73-4e77-b30c-4aef5a8004e6",
+      "name": "對話記憶",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        320,
+        240
+      ],
+      "parameters": {
+        "contextWindowLength": 6
+      }
+    },
+    {
+      "id": "866236ea-1cca-4c35-987d-e0ef83b8e6f6",
+      "name": "policy",
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1.4,
+      "position": [
+        480,
+        240
+      ],
+      "parameters": {
+        "endpointUrl": "http://host.docker.internal:8000/mcp",
+        "serverTransport": "httpStreamable",
+        "include": "all",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "員工提問（Chat）": {
+      "main": [
+        [
+          {
+            "node": "小芽 AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "對話記憶": {
+      "ai_memory": [
+        [
+          {
+            "node": "小芽 AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen3-8B（Ollama）": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "小芽 AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "policy": {
+      "ai_tool": [
+        [
+          {
+            "node": "小芽 AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

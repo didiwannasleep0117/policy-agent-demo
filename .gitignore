@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.cache/
+n8n/data/
+n8n/OWNER_LOGIN.txt
+eval/results*.json
+*.log
