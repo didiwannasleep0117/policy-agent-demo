@@ -99,13 +99,18 @@ def last(n: int = 1) -> None:
         rd = full["resultData"]["runData"]
         q = rd["員工提問（Chat）"][0]["data"]["main"][0][0]["json"]["chatInput"]
         print(f"== #{e['id']} {e['status']} Q={q}")
+        print("  路徑：", " → ".join(k for k in rd if not k.startswith(("Qwen3", "對話記憶", "policy"))))
+        if "驗算檢查" in rd:
+            chk = rd["驗算檢查"][0]["data"]["main"][0][0]["json"]
+            print(f"  驗算檢查：有算式={chk.get('hasArith')} 用過計算機={chk.get('usedCalc')} → 需要驗算={chk.get('needsRecheck')}")
         for name, runs in rd.items():
-            if name == "policy":
+            if name.startswith("policy"):
                 for run in runs:
-                    inp = run.get("inputOverride") or {}
-                    print("  🔧", json.dumps(inp, ensure_ascii=False)[:200])
-        out = rd["小芽 AI Agent"][0]["data"]["main"][0][0]["json"].get("output", "")
-        print("  ->", out[:200].replace("\n", " "))
+                    inp = (run.get("inputOverride") or {}).get("ai_tool", [[{}]])[0][0].get("json", {})
+                    print(f"  🔧 [{name}]", json.dumps(inp, ensure_ascii=False)[:160])
+        final = rd.get("回覆") or rd.get("小芽 AI Agent")
+        out = final[0]["data"]["main"][0][0]["json"].get("output", "")
+        print("  ->", out[:300].replace("\n", " "))
 
 
 def export() -> None:

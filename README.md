@@ -98,7 +98,31 @@ flowchart LR
 - 「考績 A 年終幾個月？」條文是「1.5 個月為基準 × 1.5 倍」，模型答 1.5，沒算出 2.25
 - 「35 歲可以每年健檢嗎？」條文是 40 歲以上才每年，模型答可以
 
-v6 的做法見上方「計算機的教訓」。注意：n8n 版目前沒有 harness 驗算檢查（那段在 Python 版 agent 裡），n8n 要做的話可以在 Agent 後面接一個檢查節點。
+v6 的做法見上方「計算機的教訓」。
+
+## n8n 版的驗算檢查（`scripts/n8n_build_workflow.py`）
+
+n8n 的 Agent 節點沒有辦法在中途插入檢查，所以把 Python 版的 harness 檢查改成「Agent 後面接分支」：
+
+```mermaid
+flowchart LR
+    C[員工提問] --> A["小芽 AI Agent<br/>Qwen3-8B 不思考（快）"]
+    A --> K["驗算檢查（Code）<br/>答案有「數字 × 數字」<br/>且沒呼叫過 calculate？"]
+    K -->|否| R[回覆]
+    K -->|是| V["小芽 驗算 Agent<br/>思考模式＋同一組 MCP 工具"]
+    V --> R
+```
+
+- 主 Agent 開 `returnIntermediateSteps`，檢查節點就能看到這一輪呼叫過哪些工具
+- 算式偵測和 Python 版用同一條規則：`數字（萬/千）（元/小時/個月/倍/日）運算子 數字`，例如「4 萬元 × 1.2」「200元 × (1 + 1/3)」；「婚假共八日」「4,000 元」不會誤判
+- 驗算 Agent 拿到「原問題＋草稿答案」，被要求逐字找出條文、列完整公式（基準、分段）、用 `calculate` 算每個數字
+- 不需要計算的問題只走快速路徑（約 4 秒），只有被抓到的題目才多花思考模式的時間
+- 整條工作流由腳本產生（`python scripts/n8n_build_workflow.py`），可重複執行
+
+**目前狀態（誠實列出）**
+- ✅ 分支路徑已實測：計算題會被抓到並轉給驗算 Agent；「請用計算機算」這種題目主 Agent 自己用了計算機，就不會被轉
+- ❌ 驗算 Agent 用 OpenAI 相容節點時，**還是沒呼叫計算機**，答案仍是錯的（年終 B+ 答 48,000，應為 72,000）。推測是這種節點沒有真的開到思考模式；Python 版用 Ollama 原生 API 開 `think` 時是對的
+- ⏳ 改用原生 Ollama 節點（`think: true`）的版本已寫好（腳本預設 `THINK_NODE=ollama`），還沒測
 
 ## 快速開始
 
@@ -116,13 +140,13 @@ uv run python agent/run_agent.py --eval
 
 # n8n 版
 cd n8n && docker compose up -d               # http://localhost:5678
-# 匯入 n8n/workflows/policy_agent.json，建立 OpenAI 憑證：
-#   Base URL = http://host.docker.internal:11434/v1，API Key 隨便填
+# 建立兩個憑證：OpenAI（Base URL = http://host.docker.internal:11434/v1，API Key 隨便填）、Ollama（http://host.docker.internal:11434）
+# 再用腳本產生工作流（含驗算分支）：python scripts/n8n_build_workflow.py
 ```
 
 ## 踩過的坑
 
-- **n8n 的 Ollama 節點 + Qwen3**：思考模式會把工具呼叫吃掉，回覆變空白。改用 OpenAI 相容節點，`extraBody` 加 `{"reasoning_effort": "none"}`。
+- **n8n 回覆一片空白**：一開始以為是 Qwen3 的思考模式把工具呼叫吃掉，所以改用 OpenAI 相容節點、`extraBody` 加 `{"reasoning_effort": "none"}`。後來在 n8n 和 Ollama 中間架一個記錄用的 proxy，才發現**主因是下一條的工具名前綴**：模型呼叫的工具名對不上，Ollama 就把呼叫丟掉、回空字串。教訓：猜原因之前，先看實際送出去的 request。
 - **MCP 節點名稱**：n8n 會用節點名稱當工具名前綴，中文名稱會變成 `______MCP_search...`，模型呼叫的名字對不上就被丟掉。節點用英文命名，改名後要重啟 n8n（工具清單有快取）。
 - **FastMCP 的 Host 檢查**：從 Docker 用 `host.docker.internal` 連進來會被 DNS rebinding 防護擋掉，demo 環境關閉它（正式環境應改設 `allowed_hosts`）。
 

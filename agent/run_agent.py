@@ -30,7 +30,7 @@ MAX_STEPS = 6
 THINK = os.getenv("THINK", "0") == "1"  # qwen3 思考模式：較準但較慢
 CALC_CHECK = os.getenv("CALC_CHECK", "1") == "1"  # 答案有算式卻沒用計算機 → 退回驗算
 # 「數字 運算子 數字」，例如 40,000 × 1.2、200元 × 3
-_ARITH = re.compile(r"\d[\d,.]*\s*(?:元|小時|個月|倍|日)?\s*[×xX*÷/+]\s*\(?\s*\d")
+_ARITH = re.compile(r"\d[\d,.]*\s*(?:萬|千)?\s*(?:元|小時|個月|倍|日)?\s*[×xX*÷/+]\s*\(?\s*\d")
 
 
 async def ask(session: ClientSession, question: str, verbose: bool = True, history: list | None = None) -> dict:
