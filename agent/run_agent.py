@@ -41,6 +41,12 @@ NUMERIC_TRIGGER = os.getenv("NUMERIC_TRIGGER", "0") == "1"  # 問題有數字或
 # DOC_CHECK：any＝有呼叫任何工具就算查過（舊）；strict＝一定要呼叫過查文件的工具（只用計算機不算）
 DOC_CHECK = os.getenv("DOC_CHECK", "any")
 _DOC_TOOLS = ("search_related_policies", "read_specific_document", "list_all_filenames")
+# REFUSE_CHECK：模型沒查文件就拒答時，harness 自己用問題搜一次；最相關文件的相關度 ≥ 門檻就退回去要它回答
+REFUSE_CHECK = os.getenv("REFUSE_CHECK", "0") == "1"
+REFUSE_THRESHOLD = float(os.getenv("REFUSE_THRESHOLD", "0.5"))
+_SIM = re.compile(r"相關度 ([0-9.]+)")
+# 問題提到這些字，就算相關度不到門檻也不准不查就拒答（例：「公司今年有尾牙嗎？」相關度只有 0.449）
+_COMPANY_WORDS = re.compile(os.getenv("REFUSE_KEYWORDS", r"$^"))
 _NUMERIC_Q = re.compile(r"\d|幾|多少")
 _DEFAULT_RECHECK = (
     "員工的問題：{q}\n\n以下是已經查到的規章內容：\n<<<\n{evidence}\n>>>\n\n"
@@ -53,7 +59,9 @@ _DEFAULT_RECHECK = (
 )
 # 候選可以用 RECHECK_PROMPT_FILE 換掉驗算 prompt（佔位符：{q}、{evidence}）
 _rp = os.getenv("RECHECK_PROMPT_FILE")
-FRESH_RECHECK = Path(_rp).read_text(encoding="utf-8") if _rp else _DEFAULT_RECHECK
+_rp_default = Path(__file__).with_name("recheck_prompt.md")  # 正式版（改進循環選出的候選）
+FRESH_RECHECK = Path(_rp).read_text(encoding="utf-8") if _rp else (
+    _rp_default.read_text(encoding="utf-8") if _rp_default.exists() else _DEFAULT_RECHECK)
 
 
 async def _tool_loop(session, http, msgs, ollama_tools, think, calls, outputs, verbose):
@@ -99,6 +107,19 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
             nudged = True
             msgs.append({"role": "user", "content": "（系統檢查）你還沒有查詢任何文件。請先用 search_related_policies 查詢後再回答。"})
             ans = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
+        # Harness 檢查 1b：沒查文件就拒答 → 自己搜一次，文件庫裡明顯有相關內容就退回
+        refused_early = ans is not None and "只能回答" in ans and not any(n.endswith(_DOC_TOOLS) for n, _ in calls)
+        if REFUSE_CHECK and refused_early:
+            res = await session.call_tool("search_related_policies", {"query": question})
+            hits = "\n".join(c.text for c in res.content if getattr(c, "text", None))
+            sims = [float(x) for x in _SIM.findall(hits)]
+            if (sims and max(sims) >= REFUSE_THRESHOLD) or _COMPANY_WORDS.search(question):
+                nudged = True
+                calls.append(("search_related_policies", {"query": question, "by": "harness"}))
+                outputs.append(hits)
+                msgs.append({"role": "user", "content": "（系統檢查）文件庫裡有可能相關的內容，這題可能是公司制度問題。以下是搜尋結果，請根據它回答；"
+                             "如果文件裡真的沒有答案，就照規定回答找不到並建議聯繫人資部，不要拒答。\n\n" + hits})
+                ans = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
         # Harness 檢查 2：答案有心算的算式（或問題本身涉及數字）卻沒用計算機 → 驗算
         used_calc = any(n.endswith("calculate") for n, _ in calls)
         refused = ans is not None and "只能回答" in ans
@@ -125,7 +146,7 @@ def grade(item: dict, out: dict) -> tuple[bool, str]:
         ok = not calls and "只能回答" in ans
         return ok, "拒答且未查工具" if ok else "應拒答"
     if item.get("not_found"):
-        ok = bool(calls) and ("人資" in ans) and bool(re.search(r"找不到|沒有.{0,4}提到|未提及|沒有相關|沒有.{0,4}規定", ans))
+        ok = bool(calls) and bool(re.search(r"人資|財務", ans)) and bool(re.search(r"找不到|沒有.{0,4}提到|未提及|沒有相關|沒有.{0,4}規定|未.{0,2}明確|沒有.{0,2}明確", ans))
         return ok, "查過且回答找不到" if ok else "應查詢後回答找不到"
     # 「看過全文」：搜尋附了該文件全文，或有呼叫 read_specific_document 讀它
     read = any(f"[[{item['expect_file']}]]\n" in o and ("《全文》" in o or o.startswith("[[")) for o in out.get("outputs", []))

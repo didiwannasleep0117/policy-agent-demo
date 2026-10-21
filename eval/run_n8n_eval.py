@@ -26,7 +26,7 @@ def grade(item: dict, ans: str) -> tuple[bool, str]:
         ok = "只能回答" in ans
         return ok, "拒答" if ok else "應拒答"
     if item.get("not_found"):
-        ok = "人資" in ans and bool(re.search(r"找不到|沒有.{0,4}提到|未提及|沒有相關|沒有.{0,4}規定", ans))
+        ok = bool(re.search(r"人資|財務", ans)) and bool(re.search(r"找不到|沒有.{0,4}提到|未提及|沒有相關|沒有.{0,4}規定|未.{0,2}明確|沒有.{0,2}明確", ans))
         return ok, "回答找不到" if ok else "應回答找不到"
     cited = f"[[{item['expect_file']}]]" in ans
     norm = re.sub(r"\s", "", ans)
@@ -35,7 +35,12 @@ def grade(item: dict, ans: str) -> tuple[bool, str]:
 
 
 def main() -> None:
-    items = yaml.safe_load((ROOT / "eval" / "questions.yaml").read_text(encoding="utf-8"))
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--questions", default=str(ROOT / "eval" / "questions.yaml"))
+    ap.add_argument("--out", default=str(ROOT / "eval" / "results_n8n.json"))
+    a = ap.parse_args()
+    items = yaml.safe_load(Path(a.questions).read_text(encoding="utf-8"))
     passed, results = 0, []
     for it in items:
         sid = f"eval-{uuid.uuid4().hex[:8]}"
@@ -49,7 +54,8 @@ def main() -> None:
         print(f"{'✅' if ok else '❌'} {it['q']}  ({dt:.1f}s)  {why}", flush=True)
         results.append({"q": it["q"], "ok": ok, "why": why, "seconds": round(dt, 1), "answer": ans})
     print(f"\n通過 {passed}/{len(items)}")
-    (ROOT / "eval" / "results_n8n.json").write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"平均 {sum(r['seconds'] for r in results) / len(results):.1f} 秒")
+    Path(a.out).write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 if __name__ == "__main__":

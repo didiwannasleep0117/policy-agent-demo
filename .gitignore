@@ -6,3 +6,4 @@ n8n/OWNER_LOGIN.txt
 eval/results*.json
 .cache_ann/
 *.log
+docs/screenshots/_debug*

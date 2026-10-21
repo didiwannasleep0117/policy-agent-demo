@@ -29,7 +29,8 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 H = ROOT / "harness"
 CANDS, RUNS, BOARD = H / "candidates", H / "runs", H / "scoreboard.csv"
-SPLITS = {"tune": ROOT / "eval" / "tune.yaml", "holdout": ROOT / "eval" / "holdout.yaml"}
+SPLITS = {"tune": ROOT / "eval" / "tune.yaml", "holdout": ROOT / "eval" / "holdout.yaml",
+          "holdout2": ROOT / "eval" / "holdout2.yaml"}
 sys.stdout.reconfigure(encoding="utf-8")
 
 
@@ -71,7 +72,7 @@ def load(name: str, split: str) -> list[dict]:
 
 
 def cmd_fails(name: str, split: str) -> None:
-    if split == "holdout":
+    if split.startswith("holdout"):
         sys.exit("隱藏組的錯題不准拿來改 harness（會失去檢查過擬合的意義）")
     for r in load(name, split):
         if not r["ok"]:

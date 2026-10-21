@@ -33,12 +33,14 @@ const hasArith = /\d[\d,.]*\s*(?:萬|千)?\s*(?:元|小時|個月|倍|日)?\s*[�
 const question = $('員工提問（Chat）').first().json.chatInput;
 // 問題本身在問數量或帶數字條件（幾個月、多少、35 歲…）→ 也交給思考模式驗算
 const asksNumber = /\d|幾|多少/.test(question);
+const refused = draft.includes('只能回答');  // 拒答就不驗算（同 Python 版）
 // 把主 Agent 查到的文件內容交給驗算 Agent（實測驗算 Agent 自己常常不查就編）
+// 只給文件內容（含 [[檔名]] 的工具輸出），不給計算機結果（同 Python 版 RECHECK_MODE=fresh）
 const evidence = steps.map(s => typeof s?.observation === 'string' ? s.observation : JSON.stringify(s?.observation ?? ''))
-  .join('\n\n').slice(0, 8000);
+  .filter(o => o.includes('[[')).join('\n\n').slice(0, 8000);
 return [{ json: {
   question, draft, usedCalc, hasArith, asksNumber, evidence,
-  needsRecheck: !usedCalc && (hasArith || asksNumber),
+  needsRecheck: !refused && !usedCalc && (hasArith || asksNumber),
   tools: steps.map(s => s?.action?.tool).filter(Boolean),
 }}];
 """
@@ -49,18 +51,10 @@ const it = $input.first().json;
 return [{ json: { output: (it.output ?? it.draft ?? '').trim() } }];
 """
 
-RECHECK_TEXT = (
-    "=員工的問題：{{ $json.question }}\n\n"
-    # 不附草稿答案：實測附上草稿會讓模型沿用錯的公式（錨定效應）
-    # 改附主 Agent 查到的文件內容：實測驗算 Agent 自己常常不查文件就編
-    "以下是已經查到的規章內容：\n<<<\n{{ $json.evidence }}\n>>>\n\n"
-    "（系統檢查）這題涉及數字（計算或門檻條件），請照順序做：\n"
-    "1. 只根據上面的規章內容回答；內容不夠才用 search_related_policies 再查。不准引用上面沒出現的檔名。\n"
-    "2. 逐字找出相關條文（注意「以…為基準」「乘以…倍」「前…小時」「第…小時起」「…歲以上」「未滿…」這類字）。\n"
-    "3. 依條文列出完整公式或判斷條件：有基準就要乘基準，有分段就要分段算，有門檻就把員工的條件逐一比較。\n"
-    "4. 用 calculate 算出每一個數字或比較（例如 `35 >= 40`）。\n"
-    "5. 最後只輸出給員工看的最終答案（附算式與 [[檔名]] 出處），不要提到系統檢查。"
-)
+# 驗算 prompt 和 Python 版共用同一份檔案（改進循環選出的版本會複製到 agent/recheck_prompt.md）
+# 佔位符 {q}、{evidence} 換成 n8n 的運算式；不附草稿、改附主 Agent 查到的文件（見 README n3、n6）
+RECHECK_TEXT = "=" + (ROOT / "agent" / "recheck_prompt.md").read_text(encoding="utf-8") \
+    .replace("{q}", "{{ $json.question }}").replace("{evidence}", "{{ $json.evidence }}")
 
 
 def latest(types: list[dict], name: str) -> float:

@@ -180,12 +180,36 @@ flowchart LR
 - v3b 被淘汰：模型會把「六（6）日」這種加註格式照抄進答案。看起來合理的結構性改法也要實測
 - v3a 在隱藏組錯的 1 題（採購問題被當成無關而拒答）是調整組沒涵蓋的新類型；下一輪要把這類問法補進調整組，並換一批新的隱藏組
 
+### 第 4 輪：補上隱藏組找到的盲點
+
+第 1 批隱藏組找到一個新的錯誤類型（採購問題被當成無關問題拒答）。做法：**不拿隱藏組原題來改**，而是換不同問法把採購、報帳、撥款、尾牙等 6 題補進調整組（32 → 38 題），並換上全新的第 2 批隱藏組（`eval/holdout2.yaml`）。
+
+| 候選 | 改了什麼 | 調整組 38 題 | 第 2 批隱藏組 17 題 | 平均秒數 |
+|---|---|---|---|---|
+| v3a | 上一輪最佳 | 34 | 13 | 6.1～7.3 |
+| v4a | Prompt：公司問題範圍加上採購、撥款、公司活動；不確定就先查 | 35 | | 7.4 |
+| v4b | Harness：沒查就拒答時，程式自己搜一次，相關度 ≥ 0.5 就退回 | 35 | | 7.8 |
+| **v5** | Compose：v4a ＋ v4b ＋ 問題含「公司、員工…」一律不准不查就拒答 | **36** | **14** | 6.4～7.5 |
+| v0（參考） | 起點 | | 13 | 4.7 |
+
+- 第 2 批隱藏組只多對 1 題，在誤差範圍內，不能說有顯著進步。誠實結論：調整組的進步大，泛化的進步小
+- 隱藏組又找到新類型：「叔叔過世可以請喪假嗎？」條文沒列叔叔，模型卻套用別的親屬列說可以。記錄在 `harness/EXPERIENCE.md`，留給下一輪
+- v5 已複製成正式版（`agent/system_prompt.md`、`agent/recheck_prompt.md`），**n8n 版也讀同一份檔案**
+
+### n8n 版套用 v5
+
+`scripts/n8n_build_workflow.py` 直接讀 `agent/system_prompt.md` 和 `agent/recheck_prompt.md` 產生工作流，所以 Python 版選出來的 prompt 不用手動貼進 n8n。驗算檢查節點也跟 Python 版對齊（拒答不驗算、只把含 `[[檔名]]` 的文件內容交給驗算 Agent）。
+
+- n8n 版在 38 題調整組：**36/38**，平均 8.6 秒（`python eval/run_n8n_eval.py --questions eval/tune.yaml`）
+- 錯的 2 題都是「應該說找不到」的題目，其中「尾牙」是因為 n8n 版沒有 v4b 的程式拒答檢查（只有 prompt）
+- n8n 的評分沒有檢查「有沒有讀全文」（拿不到 Python 版那麼細的工具紀錄），所以比 Python 版寬鬆一點
+
 ```bash
 python harness/loop.py new v1a --from v0      # 複製候選
 python harness/loop.py probe v1a              # 跑調整組
 python harness/loop.py fails v1a              # 看錯題（只限調整組）
 python harness/loop.py diff v0 v1a            # 逐題比較
-python harness/loop.py probe v2 --split holdout   # 最後才跑隱藏組
+python harness/loop.py probe v2 --split holdout2  # 最後才跑隱藏組（第 1 批已用過）
 python harness/loop.py rescore v2 --split tune     # 評分規則修正後，用存下的答案重新評分
 ```
 

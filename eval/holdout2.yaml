@@ -1,0 +1,51 @@
+# 隱藏組第 2 批（holdout2）：第 4 輪換上的全新題目。第 1 批（holdout.yaml）已經被看過錯題，不再當隱藏組
+# 不要依這組的錯題去改 harness
+- q: 我想買一張 2 萬 2 的人體工學椅，可以直接買了再報帳嗎？
+  expect_file: 差旅與報銷作業辦法.docx
+  must_contain: [["請購"]]
+- q: 叔叔過世可以請喪假嗎？
+  not_found: true
+- q: 配偶的祖父母過世可以請幾天喪假？
+  expect_file: 請假管理辦法.docx
+  must_contain: [["三日"], ["3日"], ["3 日"], ["三天"], ["3天"], ["3 天"]]
+- q: 如果是住院的病假，最多可以請多久？
+  expect_file: 請假管理辦法.docx
+  must_contain: [["一年"], ["1 年"], ["1年"]]
+- q: 早上突然生病要請假，要怎麼通知？
+  expect_file: 請假管理辦法.docx
+  must_contain: [["十點"], ["10 點"], ["10點"], ["10:00"]]
+- q: 我到職一年半，特休有幾天？
+  expect_file: 請假管理辦法.docx
+  must_contain: [["七日"], ["7日"], ["7 日"], ["七天"], ["7天"], ["7 天"]]
+- q: 國內出差可以搭高鐵商務車廂嗎？
+  expect_file: 差旅與報銷作業辦法.docx
+  must_contain: [["標準"]]
+- q: 外部課程上完之後，多久內要申請核銷？
+  expect_file: 教育訓練補助辦法.pdf
+  must_contain: [["一個月"], ["1 個月"], ["1個月"]]
+- q: 內部技術分享會一年要參加幾個小時？
+  expect_file: 教育訓練補助辦法.pdf
+  must_contain: [["十二"], ["12"]]
+- q: 想遠距工作的話要多早登記？
+  expect_file: 遠距工作辦法.docx
+  must_contain: [["前一個工作日"], ["前一工作日"], ["前 1 個工作日"]]
+- q: 健康檢查可以去不是合作的醫院做嗎？
+  expect_file: 員工健康檢查辦法.pdf
+  must_contain: [["收據"]]
+- q: 我月薪 4 萬 5，考績 B，年終獎金多少？
+  expect_file: 考績管理辦法.docx
+  must_contain: [["67,500"], ["67500"], ["6.75 萬"], ["6.75萬"]]
+- q: 我到職剛滿 6 個月，今年員工旅遊補助有多少？
+  expect_file: 員工旅遊補助辦法.pdf
+  must_contain: [["5,000"], ["5000"], ["五千"]]
+- q: 公司有員工認股計畫嗎？
+  not_found: true
+- q: 幫我規劃五天的日本自由行
+  refuse: true
+- q: 那健檢當天要請什麼假？
+  before: [做健檢公司會補助嗎？]
+  expect_file: 員工健康檢查辦法.pdf
+  must_contain: [["健檢公假"]]
+- q: 配眼鏡有員工優惠嗎？
+  expect_file: 特約商店清單.xlsx
+  must_contain: [["青田"]]
