@@ -2,6 +2,7 @@
 
 流程：
   員工提問 → 小芽 AI Agent（快：不思考）→ 驗算檢查（Code）
+     ├─ 沒查文件就拒答 → 拒答檢查（HTTP /refuse_check）→ 相關就交給 小芽 重答 Agent，否則維持拒答
      ├─ 不需驗算 ────────────────────────────────┐
      └─ 需要驗算 → 小芽 驗算 Agent（思考模式）──→ 回覆（Code）
 
@@ -43,6 +44,8 @@ const question = $('員工提問（Chat）').first().json.chatInput;
 // 問題本身在問數量或帶數字條件（幾個月、多少、35 歲…）→ 也交給思考模式驗算
 const asksNumber = /\d|幾|多少/.test(question);
 const refused = draft.includes('只能回答');  // 拒答就不驗算（同 Python 版）
+// 沒查任何文件就拒答 → 交給拒答檢查（同 Python 版 REFUSE_CHECK）
+const lookedDocs = steps.some(s => /(search_related_policies|read_specific_document|list_all_filenames)$/.test(String(s?.action?.tool || '')));
 // 把主 Agent 查到的文件內容交給驗算 Agent（實測驗算 Agent 自己常常不查就編）
 // 只給文件內容（含 [[檔名]] 的工具輸出），不給計算機結果（同 Python 版 RECHECK_MODE=fresh）
 const evidence = steps.map(s => typeof s?.observation === 'string' ? s.observation : JSON.stringify(s?.observation ?? ''))
@@ -50,6 +53,7 @@ const evidence = steps.map(s => typeof s?.observation === 'string' ? s.observati
 return [{ json: {
   question, draft, usedCalc, hasArith, asksNumber, evidence,
   needsRecheck: !refused && !usedCalc && (hasArith || asksNumber),
+  refusedEarly: refused && !lookedDocs,
   tools: steps.map(s => s?.action?.tool).filter(Boolean),
 }}];
 """
@@ -58,7 +62,7 @@ FINAL_JS = r"""
 // 統一輸出給聊天視窗：驗算過就用驗算後的答案
 // 引用格式 [[檔名]] 是給評分和程式看的；給人看時換成可以點開的「參考文件」卡片
 const it = $input.first().json;
-let text = (it.output ?? it.draft ?? '').trim();
+let text = (it.output ?? it.draft ?? $('驗算檢查').first().json.draft ?? '').trim();  // 拒答檢查沒要求重答時，沿用原本的回答
 const files = [...new Set([...text.matchAll(/\[\[([^\]]+)\]\]/g)].map(m => m[1].trim()))];
 text = text
   .replace(/^.*📄\s*參考文件[:：]?.*$/gm, '')      // 模型自己寫的參考文件行
@@ -74,6 +78,13 @@ return [{ json: { output: text, cited: files } }];
 
 # 驗算 prompt 和 Python 版共用同一份檔案（改進循環選出的版本會複製到 agent/recheck_prompt.md）
 # 佔位符 {q}、{evidence} 換成 n8n 的運算式；不附草稿、改附主 Agent 查到的文件（見 README n3、n6）
+RETRY_TEXT = (
+    "=員工的問題：{{ $('驗算檢查').first().json.question }}\n\n"
+    "（系統檢查）文件庫裡有可能相關的內容，這題可能是公司制度問題。以下是搜尋結果，請根據它回答；"
+    "如果文件裡真的沒有答案，就照規定回答找不到並建議聯繫人資部，不要拒答。\n\n{{ $json.hits }}"
+)
+REFUSE_CHECK_URL = "http://host.docker.internal:8000/refuse_check"
+
 RECHECK_TEXT = "=" + (ROOT / "agent" / "recheck_prompt.md").read_text(encoding="utf-8") \
     .replace("{q}", "{{ $json.question }}").replace("{evidence}", "{{ $json.evidence }}")
 
@@ -148,6 +159,30 @@ def main() -> None:
                         "options": {"systemMessage": PROMPT, "maxIterations": 8, "enableStreaming": False}}},
         model("Qwen3-8B（思考）", [980, 140], think=True),
         mcp("policy_check", [1140, 140]),
+        {"id": str(uuid.uuid4()), "name": "沒查就拒答？", "type": "n8n-nodes-base.if", "typeVersion": if_v,
+         "position": [820, -260],
+         "parameters": {"conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "strict", "version": 2},
+                                       "conditions": [{"id": str(uuid.uuid4()), "leftValue": "={{ $json.refusedEarly }}",
+                                                       "rightValue": "", "operator": {"type": "boolean", "operation": "true",
+                                                                                      "singleValue": True}}],
+                                       "combinator": "and"}, "options": {}}},
+        {"id": str(uuid.uuid4()), "name": "拒答檢查", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.5,
+         "position": [1040, -380],
+         "parameters": {"method": "POST", "url": REFUSE_CHECK_URL, "sendBody": True, "specifyBody": "json",
+                        "jsonBody": "={{ JSON.stringify({ question: $json.question }) }}", "options": {}}},
+        {"id": str(uuid.uuid4()), "name": "要重答？", "type": "n8n-nodes-base.if", "typeVersion": if_v,
+         "position": [1240, -380],
+         "parameters": {"conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "strict", "version": 2},
+                                       "conditions": [{"id": str(uuid.uuid4()), "leftValue": "={{ $json.retry }}",
+                                                       "rightValue": "", "operator": {"type": "boolean", "operation": "true",
+                                                                                      "singleValue": True}}],
+                                       "combinator": "and"}, "options": {}}},
+        {"id": str(uuid.uuid4()), "name": "小芽 重答 Agent", "type": "@n8n/n8n-nodes-langchain.agent",
+         "typeVersion": 3.1, "position": [1460, -480],
+         "parameters": {"promptType": "define", "text": RETRY_TEXT,
+                        "options": {"systemMessage": PROMPT, "maxIterations": 8, "enableStreaming": False}}},
+        model("Qwen3-8B（重答）", [1400, -300], think=False),
+        mcp("policy_retry", [1560, -300]),
         {"id": str(uuid.uuid4()), "name": "回覆", "type": "n8n-nodes-base.code", "typeVersion": code_v,
          "position": [1320, 0], "parameters": {"jsCode": FINAL_JS.strip().replace("DOC_BASE_URL", DOC_BASE)}},
     ]
@@ -155,7 +190,13 @@ def main() -> None:
     conns = {
         TRIGGER: {"main": [[main_("小芽 AI Agent")]]},
         "小芽 AI Agent": {"main": [[main_("驗算檢查")]]},
-        "驗算檢查": {"main": [[main_("需要驗算？")]]},
+        "驗算檢查": {"main": [[main_("沒查就拒答？")]]},
+        "沒查就拒答？": {"main": [[main_("拒答檢查")], [main_("需要驗算？")]]},
+        "拒答檢查": {"main": [[main_("要重答？")]]},
+        "要重答？": {"main": [[main_("小芽 重答 Agent")], [main_("回覆")]]},
+        "小芽 重答 Agent": {"main": [[main_("回覆")]]},
+        "Qwen3-8B（重答）": {"ai_languageModel": [[{"node": "小芽 重答 Agent", "type": "ai_languageModel", "index": 0}]]},
+        "policy_retry": {"ai_tool": [[{"node": "小芽 重答 Agent", "type": "ai_tool", "index": 0}]]},
         "需要驗算？": {"main": [[main_("小芽 驗算 Agent")], [main_("回覆")]]},
         "小芽 驗算 Agent": {"main": [[main_("回覆")]]},
         "Qwen3-8B（快速）": {"ai_languageModel": [[{"node": "小芽 AI Agent", "type": "ai_languageModel", "index": 0}]]},

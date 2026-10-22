@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import threading
 from pathlib import Path
 
@@ -105,6 +106,29 @@ async def open_doc(request):
         return PlainTextResponse("not found", status_code=404)
     inline = path.suffix.lower() == ".pdf"
     return FileResponse(path, filename=name, content_disposition_type="inline" if inline else "attachment")
+
+
+_SIM = re.compile(r"相關度 ([0-9.]+)")
+REFUSE_THRESHOLD = float(os.getenv("REFUSE_THRESHOLD", "0.5"))
+_COMPANY_WORDS = re.compile(os.getenv("REFUSE_KEYWORDS", "公司|同仁|員工|主管|部門"))
+
+
+@mcp.custom_route("/refuse_check", methods=["POST"])
+async def refuse_check(request):
+    """給 n8n 用的拒答檢查（同 Python 版 REFUSE_CHECK）：Agent 沒查文件就拒答時，用問題搜一次；
+    問題提到「公司、員工…」（或開了 use_similarity 且相關度 ≥ 門檻），就回 retry=true 和搜尋結果，讓 Agent 重答。"""
+    import anyio
+    from starlette.responses import JSONResponse
+    body = await request.json()
+    q = str(body.get("question", ""))
+    hits = await anyio.to_thread.run_sync(search_related_policies, q)
+    sims = [float(x) for x in _SIM.findall(hits)]
+    best = max(sims) if sims else 0.0
+    # 預設只看關鍵字：n8n 實測相關度分不開（「規劃日本自由行」0.50、「寫請假英文 email」0.59、「報帳撥款」0.62），
+    # 用相關度門檻會把無關問題也拉回來回答。use_similarity=true 才加上門檻（Python 版 v4b 的做法）
+    by_sim = bool(body.get("use_similarity", False)) and best >= REFUSE_THRESHOLD
+    retry = by_sim or bool(_COMPANY_WORDS.search(q))
+    return JSONResponse({"retry": retry, "best": best, "hits": hits})
 
 
 def _background_sync(interval: int) -> None:
