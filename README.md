@@ -239,6 +239,33 @@ python harness/loop.py probe v2 --split holdout2  # 最後才跑隱藏組（第 
 python harness/loop.py rescore v2 --split tune     # 評分規則修正後，用存下的答案重新評分
 ```
 
+## 分流：規章＋數據同一個聊天入口（`scripts/n8n_build_router.py`）
+
+一個 Agent 同時掛兩種工具，就只能吃同一份指令：規章的「無關問題一律拒答」會把數據問題拒掉，兩邊的引用規則也會混在一起。所以改成**先分流，再交給各自的 Agent**：
+
+```mermaid
+flowchart LR
+    Q[員工提問] --> C["問題分類<br/>(n8n Text Classifier · Qwen3-8B)"]
+    C -- 規章 --> P["小芽規章工作流<br/>(原本的指令＋驗算分支，不改)"]
+    C -- 數據 --> D["星芽數據小幫手<br/>(text2sql-demo /ask)"]
+    C -- 其他 --> P
+    P --> O[回覆]
+    D --> O
+```
+
+- 規章分支用 HTTP 呼叫原本的規章工作流，數據分支呼叫 text2sql-demo 的 `/ask`（同一個伺服器也提供 MCP 工具）。兩邊都是調好、跑過分數的版本，直接沿用
+- **「其他」不直接拒答**，再交給規章 Agent 當第二道關卡：分類器會把「員工優惠、尾牙」誤判成其他，規章 Agent 自己有拒答規則，真的無關還是會拒
+
+| 版本 | 分流調整組 30 題 | 分流隱藏組 15 題 |
+|---|---|---|
+| v1：其他 → 直接拒答 | 27/30（健身房優惠、尾牙、配眼鏡優惠被拒） | 13/15 |
+| **v2：其他 → 交給規章 Agent 判斷** | **29/30** | **15/15** |
+
+- 調整組（`eval/router.yaml`）刻意放了容易混的題目：App 名稱「星芽健身」vs 員工「健身房優惠」、員工年終 vs 公司營收
+- 剩下的 1 題「公司今年有尾牙嗎？」是規章 Agent 本身的老問題（直接拒答，見上面改進循環）
+- 代價：無關問題多走一次規章 Agent，平均 8.0 → 8.6 秒
+- 評測：`python eval/run_router_eval.py [--questions eval/router_holdout.yaml]`（需要 n8n、規章 MCP、text2sql-mcp 都在跑）
+
 ## 快速開始
 
 需要：Ollama、Docker Desktop、[uv](https://docs.astral.sh/uv/)
