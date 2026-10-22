@@ -22,6 +22,8 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import checks  # noqa: E402
 MCP_URL = os.getenv("MCP_URL", "http://127.0.0.1:8000/mcp")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
 MODEL = os.getenv("CHAT_MODEL", "qwen3:8b")
@@ -65,6 +67,22 @@ _KIN_TOPIC = re.compile(r"喪|奠儀|過世|去世|往生|婚|生育|補助|慰�
 # 動機：8B 模型會把名單外的對象套進最接近的一列（舅舅→兄弟姊妹、姑姑→祖父母），prompt 規則擋不住（v6 實測）
 SUPPORT_CHECK = os.getenv("SUPPORT_CHECK", "0") == "1"
 _YESNO_Q = re.compile(r"可以|可不可以|能不能|會不會|有沒有|嗎[？?]?$")
+# 第 6 輪：程式化檢查（agent/checks.py）
+SHOW_WORK = os.getenv("SHOW_WORK", "0") == "1"  # 數字題的答案沒寫出算式（就算用過計算機）也送驗算
+ARITH_VERIFY = os.getenv("ARITH_VERIFY", "0") == "1"  # 答案裡的「算式＝數字」用計算機重算，算錯就附正確值退回
+CITE_READ = os.getenv("CITE_READ", "0") == "1"        # 引用的文件只看過片段 → 程式讀全文給模型核對
+TERM_CHECK = os.getenv("TERM_CHECK", "0") == "1"      # 「可以…嗎」問的動作在條文裡完全沒出現 → 找不到
+_PERMIT_Q = re.compile(r"(可以|可不可以|能不能|能否|可否|能).{0,12}(嗎|？|\?)$")
+ACTION_MAP = [  # (問題裡的口語, 條文裡會出現的寫法)
+    (("預支", "預借", "借支", "先借"), ("預支", "預借", "借支", "暫支", "預付")),
+    (("分期",), ("分期",)),
+    (("代領", "幫我領", "代為申請"), ("代領", "代為申請", "代理人")),
+    (("轉讓", "讓給"), ("轉讓", "讓與")),
+]
+TERM_PROMPT = (
+    "使用者問：「{q}」\n這是在問能不能做某件事。請找出他想做的那個動作或項目（2–4 個字，例如「預支」「換成補休」「坐豪華經濟艙」），"
+    "再列出公司規章裡可能使用的 2–4 個同義寫法（例如「預支」→「預借」「借支」；「留到明年」→「遞延」「保留至次年」）。"
+    "只輸出 JSON：{{\"term\": \"…\", \"synonyms\": [\"…\"]}}")
 NOT_FOUND = "抱歉，目前的規章文件裡找不到這個問題的資訊，建議直接聯繫人資部。"
 SUPPORT_PROMPT = (
     "員工的問題：{q}\n\n小幫手的回答：\n<<<\n{a}\n>>>\n\n規章原文：\n<<<\n{evidence}\n>>>\n\n"
@@ -150,7 +168,8 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
         # Harness 檢查 2：答案有心算的算式（或問題本身涉及數字）卻沒用計算機 → 驗算
         used_calc = any(n.endswith("calculate") for n, _ in calls)
         refused = ans is not None and "只能回答" in ans
-        trigger = ans is not None and not refused and not used_calc and (
+        no_work = SHOW_WORK and ans is not None and bool(_NUMERIC_Q.search(question)) and not _ARITH.search(ans)
+        trigger = ans is not None and not refused and (no_work or not used_calc) and (
             bool(_ARITH.search(ans)) or (NUMERIC_TRIGGER and bool(_NUMERIC_Q.search(question))))
         if CALC_CHECK and trigger:
             calc_nudged = True
@@ -163,6 +182,35 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
                 msgs.append({"role": "user", "content": "（系統檢查）你的回答裡有計算，但沒有使用 calculate 工具。請先重新確認條文裡的公式（基準、倍數、分段），再用 calculate 算出每一個數字，最後重寫答案。"})
                 again = await _tool_loop(session, http, msgs, ollama_tools, RECHECK_THINK or THINK, calls, outputs, verbose)
             ans = again if again else ans
+        # Harness 檢查 2c：引用的文件只看過片段 → 程式讀全文，請模型核對後重寫
+        cite_read = False
+        if CITE_READ and ans and "只能回答" not in ans:
+            missing = checks.unread_citations(ans, outputs)[:2]
+            if missing:
+                texts = []
+                for f in missing:
+                    res = await session.call_tool("read_specific_document", {"filename": f})
+                    text = "\n".join(c.text for c in res.content if getattr(c, "text", None))
+                    calls.append(("read_specific_document", {"filename": f, "by": "harness"}))
+                    outputs.append(text)
+                    texts.append(text)
+                cite_read = True
+                msgs.append({"role": "user", "content": "（系統檢查）你引用的文件只看過片段。以下是全文，請核對數字、日期與條件後重寫答案，只根據全文回答。\n\n"
+                             + "\n\n".join(texts)[:8000]})
+                again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
+                ans = again or ans
+        # Harness 檢查 2d：答案裡的算式用計算機重算，算錯就附正確值退回一次
+        arith_fixed = False
+        if ARITH_VERIFY and ans and "只能回答" not in ans:
+            bad = checks.wrong_equations(ans)
+            if bad:
+                arith_fixed = True
+                lines = "\n".join(f"- {e} 你寫 {w:g}，正確是 {c:g}" for e, w, c in bad)
+                msgs.append({"role": "assistant", "content": ans})
+                msgs.append({"role": "user", "content": "（系統檢查）以下算式的結果算錯了：\n" + lines
+                             + "\n請用正確的數字重算後面所有用到它的步驟與總數，重寫完整答案（不要提到系統檢查）。"})
+                again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
+                ans = again or ans
         # Harness 檢查 2b：問到條文沒列的親屬，答案卻不是找不到 → 改成找不到
         kin_fixed = False
         if KIN_CHECK and ans and "只能回答" not in ans and "找不到" not in ans and _KIN_TOPIC.search(question):
@@ -189,9 +237,23 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
             if verdict.get("supported") is False:
                 support_fixed = True
                 ans = NOT_FOUND
+        # Harness 檢查 4：問到「申請動作」（預支、分期…），條文裡完全沒有這個動作的任何寫法 → 文件沒有規定
+        #   第一版讓模型自己抽關鍵詞＋同義詞，結果抽出「每年檢查」「延後使用」這種條文不會用的說法，誤殺 6 題；
+        #   改成跟親屬對照一樣，由程式維護的對照表（口語 → 規章常見寫法）
+        term_fixed = False
+        if TERM_CHECK and ans and "只能回答" not in ans and "找不到" not in ans and outputs:
+            # 搜尋結果第一行會重複使用者的問題（「搜尋「…預支…」的結果」），要先拿掉，否則一定找得到
+            evidence = "\n\n".join(re.sub(r"^搜尋「.*?」的結果.*$", "", o, flags=re.M) for o in outputs if "[[" in o)
+            for words, doc_words in ACTION_MAP:
+                hit = next((w for w in words if w in question), None)
+                if hit and checks.term_in_evidence(doc_words, evidence) is None:
+                    term_fixed = True
+                    ans = f"查到的規章條文裡沒有「{hit}」的相關規定，所以無法確定可不可以。\n\n" + NOT_FOUND
+                    break
     return {"answer": ans if ans is not None else "（超過工具呼叫上限）", "calls": calls, "outputs": outputs,
             "nudged": nudged, "calc_nudged": calc_nudged, "support_fixed": support_fixed,
-            "kin_fixed": locals().get("kin_fixed", False)}
+            "kin_fixed": locals().get("kin_fixed", False), "cite_read": cite_read, "arith_fixed": arith_fixed,
+            "term_fixed": term_fixed}
 
 
 def grade(item: dict, out: dict) -> tuple[bool, str]:

@@ -3,7 +3,7 @@
   "q": "伯父過世可以請喪假嗎？",
   "ok": true,
   "why": "查過且回答找不到",
-  "seconds": 5.8,
+  "seconds": 5.7,
   "calls": [
    [
     "search_related_policies",
@@ -20,7 +20,7 @@
   "q": "配偶的父母過世，公司有致贈奠儀嗎？",
   "ok": false,
   "why": "應查詢後回答找不到",
-  "seconds": 5.1,
+  "seconds": 5.0,
   "calls": [
    [
     "search_related_policies",
@@ -37,7 +37,7 @@
   "q": "結婚禮金可以等到明年再申請嗎？",
   "ok": false,
   "why": "應查詢後回答找不到",
-  "seconds": 3.5,
+  "seconds": 3.4,
   "calls": [
    [
     "search_related_policies",
@@ -52,9 +52,9 @@
  },
  {
   "q": "子女過世可以請幾天喪假？",
-  "ok": true,
-  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 13.5,
+  "ok": false,
+  "why": "看過全文=True 引用正確=True 內容正確=False（被要求驗算）",
+  "seconds": 12.7,
   "calls": [
    [
     "search_related_policies",
@@ -63,7 +63,7 @@
     }
    ]
   ],
-  "answer": "員工的子女過世可請喪假的天數如下：\n\n**結論**：喪假共 **6日**，工資照給 [[請假管理辦法.docx]]。\n\n**細節說明**：\n- 根據《請假管理辦法.docx》第三條，「子女喪亡者」屬於第三類情節，給予 **6日喪假**。\n- 喪假可於百日內分次申請，工資全額發給，無需補交證明（與婚假不同，婚假需結婚證明）。\n\n📄 參考文件：  \n[[請假管理辦法.docx]]",
+  "answer": "員工的子女過世可請喪假3日，工資照給。  \n**計算方式**：根據《請假管理辦法.docx》第三條，子女喪亡屬「曾祖父母、兄弟姊妹、配偶之祖父母喪亡者」，給予喪假三日 [[請假管理辦法.docx]]。  \n\n📄 參考文件：  \n[[請假管理辦法.docx]]",
   "nudged": false,
   "calc_nudged": true
  },
@@ -71,7 +71,7 @@
   "q": "祖父過世公司會致贈多少奠儀？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 9.7,
+  "seconds": 9.4,
   "calls": [
    [
     "search_related_policies",
@@ -88,7 +88,7 @@
   "q": "老婆生三胞胎，生育補助可以領多少？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 24.0,
+  "seconds": 23.1,
   "calls": [
    [
     "search_related_policies",
@@ -105,7 +105,7 @@
   "q": "自己規劃旅遊的話，員工旅遊補助要怎麼申請？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True",
-  "seconds": 6.0,
+  "seconds": 5.8,
   "calls": [
    [
     "search_related_policies",
@@ -122,7 +122,7 @@
   "q": "我跟老公都是星芽員工，結婚禮金可以各領一份嗎？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True",
-  "seconds": 6.2,
+  "seconds": 5.9,
   "calls": [
    [
     "search_related_policies",

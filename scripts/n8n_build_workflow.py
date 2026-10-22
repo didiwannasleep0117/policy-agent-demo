@@ -50,9 +50,32 @@ const lookedDocs = steps.some(s => /(search_related_policies|read_specific_docum
 // 只給文件內容（含 [[檔名]] 的工具輸出），不給計算機結果（同 Python 版 RECHECK_MODE=fresh）
 const evidence = steps.map(s => typeof s?.observation === 'string' ? s.observation : JSON.stringify(s?.observation ?? ''))
   .filter(o => o.includes('[[')).join('\n\n').slice(0, 8000);
+// 算式重算（同 Python 版 ARITH_VERIFY）：答案裡「算式 = 數字」用小型解析器重算，算錯就送驗算
+function calc(expr) {  // 只認數字、+ - * / 與括號，不用 eval
+  const t = expr.match(/\d+(?:\.\d+)?|[-+*/()]/g) || []; let i = 0;
+  const num = () => { const v = t[i++]; if (v === '(') { const r = add(); i++; return r; } if (v === '-') return -num(); return parseFloat(v); };
+  const mul = () => { let v = num(); while (t[i] === '*' || t[i] === '/') { const o = t[i++], r = num(); v = o === '*' ? v * r : v / r; } return v; };
+  const add = () => { let v = mul(); while (t[i] === '+' || t[i] === '-') { const o = t[i++], r = mul(); v = o === '+' ? v + r : v - r; } return v; };
+  const v = add(); return i === t.length ? v : NaN;
+}
+const unLatex = t => t.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '$1/$2').replace(/\\times/g, '×').replace(/\\div/g, '÷')
+  .replace(/\\cdot/g, '×').replace(/\\text\{([^{}]*)\}/g, '$1').replace(/\$([^$\n]+)\$/g, '$1');  // 模型偶爾輸出 LaTeX，聊天視窗不會渲染
+const wrongEq = [];
+for (const m of unLatex(draft).matchAll(/(?<![\d.])([\d(（][\d.,\s×xX*＊÷\/+\-－（）()元小時個月日天倍萬千]*?[\d)）元時月日天倍])\s*[=＝]\s*(?:新台幣\s*)?([\d,]*\d(?:\.\d+)?)/g)) {
+  let e = m[1].replace(/(\d)\s*萬/g, '($1*10000)').replace(/(\d)\s*千/g, '($1*1000)').replace(/元|小時|個月|日|天|倍/g, '')
+    .replace(/[×xX＊]/g, '*').replace(/÷/g, '/').replace(/－/g, '-').replace(/（/g, '(').replace(/）/g, ')').replace(/(\d),(?=\d{3})/g, '$1');
+  if (!/[*\/+\-]/.test(e)) continue;
+  const v = calc(e), w = parseFloat(m[2].replace(/,/g, ''));
+  if (isFinite(v) && Math.abs(v - w) > Math.max(0.6, Math.abs(v) * 0.005)) wrongEq.push(`${m[1].trim()} 寫 ${w}，應為 ${Math.round(v * 100) / 100}`);
+}
+// 數字題卻沒寫出算式（同 Python 版 SHOW_WORK）：就算用過計算機也送驗算
+const noWork = asksNumber && !hasArith;
+// 申請動作對照（同 Python 版 TERM_CHECK）用的完整條文，去掉搜尋結果開頭重複的問題
+const evidenceAll = steps.map(s => typeof s?.observation === 'string' ? s.observation : JSON.stringify(s?.observation ?? ''))
+  .filter(o => o.includes('[[')).join('\n\n').replace(/搜尋「[^」]*」的結果/g, '');  // n8n 的 observation 是 JSON 字串，換行被跳脫，不能用 ^…$
 return [{ json: {
-  question, draft, usedCalc, hasArith, asksNumber, evidence,
-  needsRecheck: !refused && !usedCalc && (hasArith || asksNumber),
+  question, draft, usedCalc, hasArith, asksNumber, evidence, evidenceAll, wrongEq, noWork,
+  needsRecheck: !refused && ((!usedCalc && (hasArith || asksNumber)) || wrongEq.length > 0 || noWork),
   refusedEarly: refused && !lookedDocs,
   // 沒查文件就直接回答（追問題常見：拿對話記憶亂答、編檔名）→ 一樣走拒答檢查，強制重答（同 Python 版 DOC_CHECK=strict）
   answeredNoLookup: !refused && !lookedDocs && !/人資/.test(draft),
@@ -74,6 +97,20 @@ if (other && !KIN_KNOWN.test(q) && /喪|奠儀|過世|去世|往生|婚|生育|�
     && !text.includes('只能回答') && !text.includes('找不到')) {
   text = `規章裡相關條文列出的親屬沒有「${other[0]}」，所以文件沒有這種情況的規定。\n\n抱歉，目前的規章文件裡找不到這個問題的資訊，建議直接聯繫人資部。`;
 }
+// 申請動作對照（同 Python 版 TERM_CHECK）：問到「預支」這類動作，查到的條文裡完全沒有任何寫法 → 找不到
+const ACTION_MAP = [[/預支|預借|借支|先借/, ['預支', '預借', '借支', '暫支', '預付']], [/分期/, ['分期']],
+  [/代領|幫我領|代為申請/, ['代領', '代為申請', '代理人']], [/轉讓|讓給/, ['轉讓', '讓與']]];
+const ev = ($('驗算檢查').first().json.evidenceAll || '').replace(/\s/g, '');
+for (const [re, words] of ACTION_MAP) {
+  const hit = q.match(re);
+  if (hit && ev && !words.some(w => ev.includes(w)) && !text.includes('只能回答') && !text.includes('找不到')) {
+    text = `查到的規章條文裡沒有「${hit[0]}」的相關規定，所以無法確定可不可以。\n\n抱歉，目前的規章文件裡找不到這個問題的資訊，建議直接聯繫人資部。`;
+    break;
+  }
+}
+const unLatex = t => t.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '$1/$2').replace(/\\times/g, '×').replace(/\\div/g, '÷')
+  .replace(/\\cdot/g, '×').replace(/\\text\{([^{}]*)\}/g, '$1').replace(/\$([^$\n]+)\$/g, '$1');  // 模型偶爾輸出 LaTeX，聊天視窗不會渲染
+text = unLatex(text);
 const files = [...new Set([...text.matchAll(/\[\[([^\]]+)\]\]/g)].map(m => m[1].trim()))];
 text = text
   .replace(/^.*📄\s*參考文件[:：]?.*$/gm, '')      // 模型自己寫的參考文件行
