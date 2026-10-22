@@ -47,6 +47,33 @@ REFUSE_THRESHOLD = float(os.getenv("REFUSE_THRESHOLD", "0.5"))
 _SIM = re.compile(r"相關度 ([0-9.]+)")
 # 問題提到這些字，就算相關度不到門檻也不准不查就拒答（例：「公司今年有尾牙嗎？」相關度只有 0.449）
 _COMPANY_WORDS = re.compile(os.getenv("REFUSE_KEYWORDS", r"$^"))
+# KIN_CHECK：親屬稱謂由程式對照（像 Text-to-SQL 的代碼對照）。問題提到的親屬不在任何條文用語裡（舅舅、姑姑…），
+# 回答又不是找不到 → 改成找不到並說明條文列了哪些親屬。動機：v6 prompt 規則、v7 模型自我核對都擋不住「套用最接近的一列」
+KIN_CHECK = os.getenv("KIN_CHECK", "0") == "1"
+KIN_MAP = {  # 口語 → 條文用語
+    "太太": "配偶", "老婆": "配偶", "妻子": "配偶", "先生": "配偶", "老公": "配偶", "丈夫": "配偶", "配偶": "配偶",
+    "爸爸": "父母", "媽媽": "父母", "父親": "父母", "母親": "父母", "父母": "父母",
+    "爺爺": "祖父母", "奶奶": "祖父母", "外公": "祖父母", "外婆": "祖父母", "祖父": "祖父母", "祖母": "祖父母",
+    "兒子": "子女", "女兒": "子女", "小孩": "子女", "子女": "子女",
+    "哥哥": "兄弟姊妹", "姐姐": "兄弟姊妹", "姊姊": "兄弟姊妹", "弟弟": "兄弟姊妹", "妹妹": "兄弟姊妹", "兄弟": "兄弟姊妹",
+    "岳父": "配偶之父母", "岳母": "配偶之父母", "公公": "配偶之父母", "婆婆": "配偶之父母",
+    "曾祖": "曾祖父母",
+}
+_KIN_OTHER = re.compile(r"舅舅|舅媽|姑姑|姑丈|叔叔|嬸嬸|伯父|伯母|阿姨|姨丈|表[哥姐姊弟妹]|堂[哥姐姊弟妹]|姪[子女]|外甥|孫[子女]|乾[爹媽]")
+_KIN_TOPIC = re.compile(r"喪|奠儀|過世|去世|往生|婚|生育|補助|慰問")
+# SUPPORT_CHECK：是非題（可以嗎／有沒有／會不會）回答「可以／有」之前，另開對話用思考模式做一次「條文有沒有明確涵蓋」的核對。
+# 動機：8B 模型會把名單外的對象套進最接近的一列（舅舅→兄弟姊妹、姑姑→祖父母），prompt 規則擋不住（v6 實測）
+SUPPORT_CHECK = os.getenv("SUPPORT_CHECK", "0") == "1"
+_YESNO_Q = re.compile(r"可以|可不可以|能不能|會不會|有沒有|嗎[？?]?$")
+NOT_FOUND = "抱歉，目前的規章文件裡找不到這個問題的資訊，建議直接聯繫人資部。"
+SUPPORT_PROMPT = (
+    "員工的問題：{q}\n\n小幫手的回答：\n<<<\n{a}\n>>>\n\n規章原文：\n<<<\n{evidence}\n>>>\n\n"
+    "請核對：這個回答的結論，規章原文有沒有**明確**支持？逐項檢查：\n"
+    "1. 問題問到的對象或事項（人、親屬、項目、做法），原文有沒有直接寫到，或用意思相同的條文用語寫到"
+    "（例如 太太＝配偶、奶奶＝祖父母 算同一個；但條文沒列出的親屬，不能比照最接近的一列）。\n"
+    "2. 「可以／不可以」「有／沒有」的結論，原文有沒有直接寫；原文沒寫，就算推論合理也不算支持。\n"
+    '只輸出 JSON：{{"supported": true 或 false, "reason": "一句話"}}'
+)
 _NUMERIC_Q = re.compile(r"\d|幾|多少")
 _DEFAULT_RECHECK = (
     "員工的問題：{q}\n\n以下是已經查到的規章內容：\n<<<\n{evidence}\n>>>\n\n"
@@ -136,8 +163,35 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
                 msgs.append({"role": "user", "content": "（系統檢查）你的回答裡有計算，但沒有使用 calculate 工具。請先重新確認條文裡的公式（基準、倍數、分段），再用 calculate 算出每一個數字，最後重寫答案。"})
                 again = await _tool_loop(session, http, msgs, ollama_tools, RECHECK_THINK or THINK, calls, outputs, verbose)
             ans = again if again else ans
+        # Harness 檢查 2b：問到條文沒列的親屬，答案卻不是找不到 → 改成找不到
+        kin_fixed = False
+        if KIN_CHECK and ans and "只能回答" not in ans and "找不到" not in ans and _KIN_TOPIC.search(question):
+            other = _KIN_OTHER.search(question)
+            if other and not any(k in question for k in KIN_MAP):
+                kin_fixed = True
+                ans = (f"規章裡相關條文列出的親屬沒有「{other.group(0)}」，所以文件沒有這種情況的規定。\n\n" + NOT_FOUND)
+        # Harness 檢查 3：是非題的結論要有條文明確支持，否則改成找不到
+        support_fixed = False
+        if (SUPPORT_CHECK and ans and "只能回答" not in ans and "人資" not in ans and outputs
+                and _YESNO_Q.search(question)):
+            evidence = "\n\n".join(o for o in outputs if "[[" in o)[:8000]
+            body = {"model": MODEL, "stream": False, "think": True, "options": {"temperature": 0, "num_ctx": 12288},
+                    "format": {"type": "object", "properties": {"supported": {"type": "boolean"}, "reason": {"type": "string"}},
+                               "required": ["supported"]},
+                    "messages": [{"role": "user", "content": SUPPORT_PROMPT.format(q=question, a=ans, evidence=evidence)}]}
+            r = await http.post(f"{OLLAMA_URL}/api/chat", json=body)
+            try:
+                verdict = json.loads(r.json()["message"]["content"])
+            except (ValueError, KeyError):
+                verdict = {"supported": True}
+            if verbose:
+                print("  核對：", verdict)
+            if verdict.get("supported") is False:
+                support_fixed = True
+                ans = NOT_FOUND
     return {"answer": ans if ans is not None else "（超過工具呼叫上限）", "calls": calls, "outputs": outputs,
-            "nudged": nudged, "calc_nudged": calc_nudged}
+            "nudged": nudged, "calc_nudged": calc_nudged, "support_fixed": support_fixed,
+            "kin_fixed": locals().get("kin_fixed", False)}
 
 
 def grade(item: dict, out: dict) -> tuple[bool, str]:

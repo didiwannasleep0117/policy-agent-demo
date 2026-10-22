@@ -54,6 +54,8 @@ return [{ json: {
   question, draft, usedCalc, hasArith, asksNumber, evidence,
   needsRecheck: !refused && !usedCalc && (hasArith || asksNumber),
   refusedEarly: refused && !lookedDocs,
+  // 沒查文件就直接回答（追問題常見：拿對話記憶亂答、編檔名）→ 一樣走拒答檢查，強制重答（同 Python 版 DOC_CHECK=strict）
+  answeredNoLookup: !refused && !lookedDocs && !/人資/.test(draft),
   tools: steps.map(s => s?.action?.tool).filter(Boolean),
 }}];
 """
@@ -63,6 +65,15 @@ FINAL_JS = r"""
 // 引用格式 [[檔名]] 是給評分和程式看的；給人看時換成可以點開的「參考文件」卡片
 const it = $input.first().json;
 let text = (it.output ?? it.draft ?? $('驗算檢查').first().json.draft ?? '').trim();  // 拒答檢查沒要求重答時，沿用原本的回答
+// 親屬對照（同 Python 版 KIN_CHECK）：問到條文沒列的親屬，答案卻不是找不到 → 改成找不到
+const q = $('驗算檢查').first().json.question || '';
+const KIN_KNOWN = /太太|老婆|妻子|先生|老公|丈夫|配偶|爸爸|媽媽|父親|母親|父母|爺爺|奶奶|外公|外婆|祖父|祖母|兒子|女兒|小孩|子女|哥哥|姐姐|姊姊|弟弟|妹妹|兄弟|岳父|岳母|公公|婆婆|曾祖/;
+const KIN_OTHER = /舅舅|舅媽|姑姑|姑丈|叔叔|嬸嬸|伯父|伯母|阿姨|姨丈|表[哥姐姊弟妹]|堂[哥姐姊弟妹]|姪[子女]|外甥|孫[子女]|乾[爹媽]/;
+const other = q.match(KIN_OTHER);
+if (other && !KIN_KNOWN.test(q) && /喪|奠儀|過世|去世|往生|婚|生育|補助|慰問/.test(q)
+    && !text.includes('只能回答') && !text.includes('找不到')) {
+  text = `規章裡相關條文列出的親屬沒有「${other[0]}」，所以文件沒有這種情況的規定。\n\n抱歉，目前的規章文件裡找不到這個問題的資訊，建議直接聯繫人資部。`;
+}
 const files = [...new Set([...text.matchAll(/\[\[([^\]]+)\]\]/g)].map(m => m[1].trim()))];
 text = text
   .replace(/^.*📄\s*參考文件[:：]?.*$/gm, '')      // 模型自己寫的參考文件行
@@ -162,14 +173,14 @@ def main() -> None:
         {"id": str(uuid.uuid4()), "name": "沒查就拒答？", "type": "n8n-nodes-base.if", "typeVersion": if_v,
          "position": [820, -260],
          "parameters": {"conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "strict", "version": 2},
-                                       "conditions": [{"id": str(uuid.uuid4()), "leftValue": "={{ $json.refusedEarly }}",
+                                       "conditions": [{"id": str(uuid.uuid4()), "leftValue": "={{ $json.refusedEarly || $json.answeredNoLookup }}",
                                                        "rightValue": "", "operator": {"type": "boolean", "operation": "true",
                                                                                       "singleValue": True}}],
                                        "combinator": "and"}, "options": {}}},
         {"id": str(uuid.uuid4()), "name": "拒答檢查", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.5,
          "position": [1040, -380],
          "parameters": {"method": "POST", "url": REFUSE_CHECK_URL, "sendBody": True, "specifyBody": "json",
-                        "jsonBody": "={{ JSON.stringify({ question: $json.question }) }}", "options": {}}},
+                        "jsonBody": "={{ JSON.stringify({ question: $json.question, force: $json.answeredNoLookup }) }}", "options": {}}},
         {"id": str(uuid.uuid4()), "name": "要重答？", "type": "n8n-nodes-base.if", "typeVersion": if_v,
          "position": [1240, -380],
          "parameters": {"conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "strict", "version": 2},

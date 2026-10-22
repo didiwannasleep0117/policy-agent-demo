@@ -109,8 +109,9 @@ def main() -> None:
              "={{ JSON.stringify({ question: " + trig + ".chatInput, sessionId: " + trig + ".sessionId }) }}"),
         code("規章回覆", [760, -160], POLICY_OUT_JS),
         code("數據回覆", [760, 20], DATA_OUT_JS),
-        code("其他：拒答", [520, 200], OTHER_JS),
     ]
+    if not OTHER_TO_POLICY:  # 預設「其他」交給規章 Agent，不放這個節點，免得畫面上多一個沒接線的節點
+        nodes.append(code("其他：拒答", [520, 200], OTHER_JS))
     m = lambda n: {"node": n, "type": "main", "index": 0}  # noqa: E731
     conns = {
         TRIGGER: {"main": [[m("問題分類")]]},

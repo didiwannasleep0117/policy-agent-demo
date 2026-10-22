@@ -127,7 +127,8 @@ async def refuse_check(request):
     # 預設只看關鍵字：n8n 實測相關度分不開（「規劃日本自由行」0.50、「寫請假英文 email」0.59、「報帳撥款」0.62），
     # 用相關度門檻會把無關問題也拉回來回答。use_similarity=true 才加上門檻（Python 版 v4b 的做法）
     by_sim = bool(body.get("use_similarity", False)) and best >= REFUSE_THRESHOLD
-    retry = by_sim or bool(_COMPANY_WORDS.search(q))
+    # force：Agent 沒查文件就直接回答了（不是拒答），一律帶著搜尋結果重答
+    retry = bool(body.get("force", False)) or by_sim or bool(_COMPANY_WORDS.search(q))
     return JSONResponse({"retry": retry, "best": best, "hits": hits})
 
 
