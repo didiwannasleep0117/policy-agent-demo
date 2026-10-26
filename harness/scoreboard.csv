@@ -45,3 +45,7 @@ time,candidate,split,passed,total,avg_seconds,wall_minutes
 2026-10-22 16:35,v8,holdout2,14,17,6.2,1.8
 2026-10-22 16:37,v8,holdout3,5,9,8.1,1.2
 2026-10-22 16:38,v9c,holdout3,5,9,8.0,1.2
+2026-10-26 22:27,v9c,tune,44,45,9.8,7.5
+2026-10-26 22:31,v9c,holdout,13,17,11.8,3.4
+2026-10-26 22:33,v9c,holdout2,15,17,8.8,2.5
+2026-10-26 22:35,v9c,holdout3,5,9,8.3,1.3
