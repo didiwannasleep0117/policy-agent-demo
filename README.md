@@ -2,6 +2,16 @@
 
 > ⚠️ 示範專案：「星芽科技」是虛構公司，`data/docs/` 裡的規章全部是假資料。
 
+<!-- EVAL:START -->
+<!-- 這段由 scripts/run_eval.py 自動產生，請不要手動修改 -->
+**最新評測**（Python 版 agent）：候選 `v9c`，模型 `qwen3:8b（只在驗算時思考）`（[怎麼看這些分數](#自動評測ci-檢查--本機跑模型)）
+
+- 調整組 tune：**45/45**（100%），平均 8.2 秒／題，2026-10-22，CI 基準 ≥ 44
+- 第 1 批隱藏組 holdout：**15/17**（88.2%），平均 9.1 秒／題，2026-10-22，CI 基準 ≥ 14
+- 第 2 批隱藏組 holdout2：**15/17**（88.2%），平均 6.9 秒／題，2026-10-22，CI 基準 ≥ 14
+- 第 3 批隱藏組 holdout3：**5/9**（55.6%），平均 8.0 秒／題，2026-10-22，CI 基準 ≥ 4
+<!-- EVAL:END -->
+
 員工用自然語言問公司制度（請假、補助、報銷……），Agent **一定先查文件再回答**，每個數字都附出處；文件沒寫的不猜，跟公司無關的問題直接拒答。整套跑在本機：Ollama（Qwen3-8B + BGE-M3）、ChromaDB、n8n（Docker）。
 
 ![對話示範：婚假、年終計算](docs/screenshots/chat_2.png)
@@ -166,6 +176,67 @@ flowchart LR
 **剩下的 1 題：加班費，其實是文件寫得有歧義**
 - 條文寫「前二小時按平日每小時工資加給三分之一」。模型只算了「加給」的部分（200 × 1/3 × 2 + 200 × 2/3 × 1 = 266.67），驗收預期的是含原本工資的總額（866.67）
 - 兩種讀法在字面上都說得通。真實規章也常有這種問題，這類題目應該在條文裡寫清楚（例如「每小時給付 1⅓ 倍工資」），或在回答時把兩種讀法都說明。示範資料保留原文，不為了過關改題目
+
+## 自動評測：CI 檢查 ＋ 本機跑模型
+
+模型跑在自己電腦上（Ollama），GitHub 的 CI 機器上沒有模型；為了 CI 去呼叫付費 API 也不划算，而且換了模型分數就不是同一個東西了。所以評測拆成兩半：**CI 只做不需要模型的檢查，真正跑模型的評測在本機做，分數跟著 commit 進來，再由 CI 把關。**
+
+### CI（GitHub Actions：`.github/workflows/eval-ci.yml`）
+
+push 到 master、對 master 開 PR 時自動跑（也可在 Actions 頁面手動觸發），不呼叫模型、不需要 API 金鑰、不用開 MCP 伺服器：
+
+1. **單元測試** `uv run python -m pytest -q tests`
+   - `tests/test_grade.py`：評分程式本身對不對（Python 版 `agent/run_agent.py` 的 `grade()`、n8n 版 `eval/run_n8n_eval.py`、分流評測的「答覆正常」判定）
+     - 算對：搜尋結果附了全文或用 `read_specific_document` 讀過全文、引用 `[[檔名]]` 正確、任一組關鍵字都有（空白換行不影響）；n8n 的檔案卡片連結也算引用
+     - 算錯：正確文件只看過片段、引用錯檔案或沒用 `[[檔名]]`、關鍵字不齊（例：年終只寫 1.5 沒寫 2.25）
+     - 應拒答：沒查工具就拒答才算對，查了才拒、或說「找不到」都算錯
+     - 應回答找不到：要查過、說找不到、而且請員工找人資／財務；沒查就說找不到、自己編答案都算錯
+     - 題庫：每一題的檔案都在 `data/docs/`、題目不重複、照標準造的「完美回答」一定評對、什麼都沒查的回答一定評錯
+   - `tests/test_checks.py`：程式化檢查和工具（`agent/checks.py` 的算式重算、申請動作對照、引用讀全文；驗算觸發的算式偵測；計算機拒絕 `__import__` 這類程式碼、次方太大；中文數字加註）
+   - `tests/test_regression.py`：回歸檢查和 README 分數區塊的邏輯
+2. **回歸檢查** `uv run python scripts/check_regression.py`
+   - 用**現在的**評分規則和題庫，重新評分已 commit 的結果（`harness/runs/<候選>__tune.json`、`__holdout.json`、`__holdout2.json`、`__holdout3.json`），分數要跟 `eval/latest.json` 一樣。改了 `grade()` 或題目、讓分數變了，一定會被抓到
+   - `eval/latest.json` 每一組答對的題數，不能低於基準 `eval/baseline.json`
+   - README 最上面的分數區塊要跟 `eval/latest.json` 一致（不會出現 README 寫的分數跟實際結果對不上）
+
+要注意：
+- CI 不知道模型「現在」會怎麼回答。它檢查的是「commit 進來的分數有沒有退步、用現在的評分規則算不算得出來」。改了 prompt、檢查規則或檢索，要在本機重跑評測，CI 才會看到新分數
+- 結果檔沒有存工具輸出全文，所以重新評分時「有沒有看過全文」沿用跑分當下的判定（跟 `loop.py rescore` 一樣）
+- n8n 版和分流的分數（上面幾節的表格）要開 n8n 才跑得出來，不在自動區塊裡
+
+### 本機：一行指令跑完整評測
+
+```bash
+# 先開 Ollama（預設 http://127.0.0.1:11434，可用環境變數 OLLAMA_URL 改；要有 qwen3:8b 和 bge-m3）
+# 和規章 MCP 伺服器：uv run policy-mcp（預設 http://127.0.0.1:8000/mcp，可用 MCP_URL 改）
+uv run python scripts/run_eval.py                    # 評目前的候選（eval/latest.json 裡記的，現在是 v9c），四組 88 題都跑，約 12 分鐘
+uv run python scripts/run_eval.py --splits tune      # 只重跑調整組，其他組沿用既有結果
+uv run python scripts/run_eval.py --candidate v8     # 換候選（harness/candidates/v8）
+uv run python scripts/run_eval.py --from-existing    # 不跑模型：用 harness/runs/ 既有的結果重新評分（改了評分規則、或只想更新 README）
+uv run python scripts/run_eval.py --accept           # 題數改了、或確定接受分數下降：基準直接換成這次的結果
+uv run python scripts/run_eval.py --from-existing --dry-run   # 只印出結果，不寫任何檔案
+```
+
+它會依序：
+
+1. 檢查 Ollama、模型、MCP 伺服器有沒有開（沒開就說明原因、結束碼 2，什麼都不改）
+2. 跑調整組和三批隱藏組（跟 `harness/loop.py probe` 一樣：結果存 `harness/runs/`、記進 `harness/scoreboard.csv`）
+3. 寫 `eval/latest.json`（候選、模型、每組分數、平均秒數、時間）
+4. 跟基準 `eval/baseline.json` 比：**沒退步就把基準往上調**（基準只升不降）；退步就不動基準，結束碼 1
+5. 改寫 README 最上面 `<!-- EVAL:START -->` ～ `<!-- EVAL:END -->` 之間的分數區塊（不要手動改這段）
+
+跑完把 `harness/runs/`、`harness/scoreboard.csv`、`eval/latest.json`、`eval/baseline.json`、`README.md` 一起 commit。如果分數退步又沒有 `--accept`，CI 會失敗，提醒你這次改動讓分數變差。重跑會覆蓋 `harness/runs/<候選>__<組>.json`，舊結果留在 git 歷史裡。
+
+### 分數怎麼看
+
+- **調整組 tune（45 題）**：改進循環看得到錯題，有被「針對」過，分數偏樂觀。舊的 14 題驗收（`eval/questions.yaml`）都包含在裡面
+- **第 1 批隱藏組 holdout（17 題）**：題型類似、題目不同。它找到的錯誤類型（採購問題被拒答）在第 4 輪換個問法補進了調整組，所以不算完全沒看過
+- **第 2 批隱藏組 holdout2（17 題）**：第 4 輪換上的全新題目，最接近真實表現
+- **第 3 批隱藏組 holdout3（9 題）**：第 5 輪換上，刻意出難題（名單外的親屬、條文沒列的情況、文件沒寫可不可以）。題數少，1 題就差 11%，只能當參考
+- **答對**：一般題要「看過正確文件的全文 ＋ 引用正確 ＋ 關鍵字對」三個都成立；拒答題要沒查就拒答；找不到題要查過、說找不到、請員工找人資或財務
+- **平均秒數**：每題從問問題到回答完成的時間（追問題含前一題），跟電腦的 GPU 和負載有關，只能在同一台電腦上比較
+- **CI 基準**：每組最少要答對幾題。同一題每次跑可能有 ±1 題的浮動，`eval/baseline.json` 的 `allowed_drop` 設定容許少幾題（目前設 1：少 1 題算正常浮動，少 2 題以上 CI 才會失敗）
+- 隱藏組的錯題不要拿來改 harness（`loop.py fails --split holdout` 會拒絕；`run_eval.py` 跑分時畫面會逐題顯示對錯，看分數就好）
 
 ## 自動改進循環（仿 Harness²，`harness/`）
 
@@ -341,6 +412,10 @@ uv run policy-mcp                            # MCP 伺服器：http://127.0.0.1:
 uv run python agent/run_agent.py "婚假怎麼請？"
 uv run python agent/run_agent.py --eval
 
+# 完整評測（更新分數、基準、README 最上面的分數區塊），以及 CI 跑的檢查（不需要模型）
+uv run python scripts/run_eval.py
+uv run python -m pytest -q tests && uv run python scripts/check_regression.py
+
 # n8n 版
 cd n8n && docker compose up -d               # http://localhost:5678
 # 建立兩個憑證：OpenAI（Base URL = http://host.docker.internal:11434/v1，API Key 隨便填）、Ollama（http://host.docker.internal:11434）
@@ -357,8 +432,11 @@ cd n8n && docker compose up -d               # http://localhost:5678
 
 ```
 src/policy_mcp/   MCP 伺服器（loaders / indexer / server）
-agent/            system prompt、Python 版 agent 與驗收
-eval/             驗收題目與結果
+agent/            system prompt、Python 版 agent 與驗收、程式化檢查（checks.py）
+eval/             驗收題目與結果；scores.py（重新評分、基準、README 分數區塊）、latest.json、baseline.json
+harness/          改進循環：候選、跑分結果（runs/）、成績表、經驗庫
 n8n/              docker-compose、匯出的工作流
-scripts/          假資料產生、n8n 管理、截圖
+scripts/          假資料產生、n8n 管理、截圖；run_eval.py（本機完整評測）、check_regression.py（CI 回歸檢查）
+tests/            不需要模型的單元測試（CI 跑）
+.github/workflows/eval-ci.yml   CI
 ```
