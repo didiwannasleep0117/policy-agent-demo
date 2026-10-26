@@ -1,0 +1,32 @@
+# CI 這一半：不跑模型、不需要 API 金鑰。模型評測在本機跑（scripts/run_eval.py），結果 commit 進來後由這裡把關。
+name: eval-ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.3.2
+        with:
+          enable-cache: true
+
+      - name: Install dependencies (uv.lock)
+        run: uv sync --locked
+
+      - name: Unit tests (graders, code checks, calculator, regression logic; no model needed)
+        run: uv run python -m pytest -q tests
+
+      - name: Regression check (committed scores vs eval/baseline.json)
+        run: uv run python scripts/check_regression.py

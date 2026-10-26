@@ -1,0 +1,30 @@
+{
+  "candidate": "v9c",
+  "model": "qwen3:8b（只在驗算時思考）",
+  "splits": {
+    "tune": {
+      "passed": 44,
+      "total": 45,
+      "avg_seconds": 9.8,
+      "time": "2026-10-26 22:27"
+    },
+    "holdout": {
+      "passed": 13,
+      "total": 17,
+      "avg_seconds": 11.8,
+      "time": "2026-10-26 22:31"
+    },
+    "holdout2": {
+      "passed": 15,
+      "total": 17,
+      "avg_seconds": 8.8,
+      "time": "2026-10-26 22:33"
+    },
+    "holdout3": {
+      "passed": 5,
+      "total": 9,
+      "avg_seconds": 8.3,
+      "time": "2026-10-26 22:35"
+    }
+  }
+}

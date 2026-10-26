@@ -1,0 +1,33 @@
+{
+  "allowed_drop": 1,
+  "splits": {
+    "tune": {
+      "candidate": "v9c",
+      "model": "qwen3:8b（只在驗算時思考）",
+      "time": "2026-10-26 22:27",
+      "passed": 44,
+      "total": 45
+    },
+    "holdout": {
+      "candidate": "v9c",
+      "model": "qwen3:8b（只在驗算時思考）",
+      "time": "2026-10-26 22:31",
+      "passed": 13,
+      "total": 17
+    },
+    "holdout2": {
+      "candidate": "v9c",
+      "model": "qwen3:8b（只在驗算時思考）",
+      "time": "2026-10-26 22:33",
+      "passed": 15,
+      "total": 17
+    },
+    "holdout3": {
+      "candidate": "v9c",
+      "model": "qwen3:8b（只在驗算時思考）",
+      "time": "2026-10-26 22:35",
+      "passed": 5,
+      "total": 9
+    }
+  }
+}
