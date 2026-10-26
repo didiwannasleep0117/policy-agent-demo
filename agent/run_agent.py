@@ -269,6 +269,8 @@ def grade(item: dict, out: dict) -> tuple[bool, str]:
     cited = f"[[{item['expect_file']}]]" in ans
     norm = re.sub(r"\s", "", ans)
     content = any(all(k.replace(" ", "") in norm for k in group) for group in item["must_contain"])
+    # must_not_contain：答案寫了錯的結論（例：配偶喪假答「十四日」，但引用條文時又寫到正確的「八日」）
+    content = content and not any(k.replace(" ", "") in norm for k in item.get("must_not_contain", []))
     ok = read and cited and content
     return ok, f"看過全文={read} 引用正確={cited} 內容正確={content}" + ("（被提醒先查）" if out.get("nudged") else "") + ("（被要求驗算）" if out.get("calc_nudged") else "")
 

@@ -98,6 +98,16 @@ def test_wrong_content_graded_wrong():
     assert not ok and "內容正確=False" in why
 
 
+def test_must_not_contain():
+    """結論寫錯、但引用條文時寫到正確數字（第 7 輪 v9c：配偶喪假答「十四日」）→ 算錯。"""
+    spouse = {"q": "如果是我太太呢？", "expect_file": LEAVE, "must_contain": [["八日"]], "must_not_contain": ["十四", "14"]}
+    wrong = f"條文：父母、配偶喪亡者給予喪假八日；但配偶喪亡為十四日。結論：可請 14 日 [[{LEAVE}]]"
+    ok, why = g(spouse, wrong, outputs=[search_out(LEAVE)])
+    assert not ok and "內容正確=False" in why
+    assert g(spouse, f"配偶喪亡者給予喪假八日 [[{LEAVE}]]", outputs=[search_out(LEAVE)])[0]
+    assert not grade_n8n(spouse, wrong)[0] and grade_n8n(spouse, f"八日 [[{LEAVE}]]")[0]
+
+
 def test_nudge_flags_shown_in_reason():
     _, why = grade(WEDDING, {"answer": f"八日 [[{LEAVE}]]", "calls": SEARCH, "outputs": [search_out(LEAVE)],
                              "nudged": True, "calc_nudged": True})

@@ -846,8 +846,8 @@
  },
  {
   "q": "如果是我太太呢？",
-  "ok": true,
-  "why": "看過全文=True 引用正確=True 內容正確=True（被提醒先查）",
+  "ok": false,
+  "why": "看過全文=True 引用正確=True 內容正確=False（被提醒先查）",
   "seconds": 19.6,
   "calls": [
    [
