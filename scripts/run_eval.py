@@ -78,7 +78,8 @@ def main() -> int:
     latest = scores.summarize(cand)
     old_base = scores.read_json(scores.BASELINE)
     fails = [] if a.accept or not old_base else scores.compare(latest, old_base)
-    base = scores.raise_baseline(latest, old_base, force=a.accept or not old_base)
+    # 任何一組退步就整份基準都不動（沒退步的組也不更新），避免「部分更新」讓人以為這次結果被接受了
+    base = old_base if fails else scores.raise_baseline(latest, old_base, force=a.accept or not old_base)
     block = scores.render_block(latest, base)
 
     for split, s in latest["splits"].items():

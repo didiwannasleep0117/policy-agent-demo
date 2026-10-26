@@ -222,7 +222,7 @@ uv run python scripts/run_eval.py --from-existing --dry-run   # 只印出結果�
 1. 檢查 Ollama、模型、MCP 伺服器有沒有開（沒開就說明原因、結束碼 2，什麼都不改）
 2. 跑調整組和三批隱藏組（跟 `harness/loop.py probe` 一樣：結果存 `harness/runs/`、記進 `harness/scoreboard.csv`）
 3. 寫 `eval/latest.json`（候選、模型、每組分數、平均秒數、時間）
-4. 跟基準 `eval/baseline.json` 比：**沒退步就把基準往上調**（基準只升不降）；退步就不動基準，結束碼 1
+4. 跟基準 `eval/baseline.json` 比：**沒退步就把基準往上調**（基準只升不降）；任何一組退步就整份基準都不動，結束碼 1（README 區塊還是會寫成這次的分數，commit 上去 CI 會紅，提醒你分數掉了）
 5. 改寫 README 最上面 `<!-- EVAL:START -->` ～ `<!-- EVAL:END -->` 之間的分數區塊（不要手動改這段）
 
 跑完把 `harness/runs/`、`harness/scoreboard.csv`、`eval/latest.json`、`eval/baseline.json`、`README.md` 一起 commit。如果分數退步又沒有 `--accept`，CI 會失敗，提醒你這次改動讓分數變差。重跑會覆蓋 `harness/runs/<候選>__<組>.json`，舊結果留在 git 歷史裡。
