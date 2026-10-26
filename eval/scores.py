@@ -145,7 +145,7 @@ def _pct(p: int, t: int) -> str:
 def render_block(latest: dict, baseline: dict) -> str:
     lines = [START, "<!-- 這段由 scripts/run_eval.py 自動產生，請不要手動修改 -->",
              f"**最新評測**（Python 版 agent）：候選 `{latest['candidate']}`，模型 `{latest['model']}`"
-             f"（[怎麼看這些分數](#自動評測ci-檢查--本機跑模型)）", ""]
+             f"（[怎麼看這些分數](docs/evaluation.md#分數怎麼看)）", ""]
     for split, s in latest["splits"].items():
         b = baseline.get("splits", {}).get(split)
         base = f"，CI 基準 ≥ {b['passed'] - int(baseline.get('allowed_drop', 0))}" if b else ""
