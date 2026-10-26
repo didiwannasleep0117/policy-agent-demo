@@ -23,8 +23,9 @@ sys.path.insert(0, str(ROOT / "agent"))
 from run_agent import grade  # noqa: E402  評分規則只有一份：agent/run_agent.py 的 grade()
 
 RUNS, BOARD, CANDS = ROOT / "harness" / "runs", ROOT / "harness" / "scoreboard.csv", ROOT / "harness" / "candidates"
-SPLITS = {s: ROOT / "eval" / f"{s}.yaml" for s in ("tune", "holdout", "holdout2", "holdout3")}  # 同 harness/loop.py
-SPLIT_NAMES = {"tune": "調整組", "holdout": "第 1 批隱藏組", "holdout2": "第 2 批隱藏組", "holdout3": "第 3 批隱藏組"}
+SPLITS = {s: ROOT / "eval" / f"{s}.yaml" for s in ("tune", "holdout", "holdout2", "holdout3", "holdout4")}  # 同 harness/loop.py
+SPLIT_NAMES = {"tune": "調整組", "holdout": "第 1 批隱藏組", "holdout2": "第 2 批隱藏組", "holdout3": "第 3 批隱藏組",
+               "holdout4": "第 4 批隱藏組"}
 LATEST, BASELINE, README = ROOT / "eval" / "latest.json", ROOT / "eval" / "baseline.json", ROOT / "README.md"
 START, END = "<!-- EVAL:START -->", "<!-- EVAL:END -->"
 
