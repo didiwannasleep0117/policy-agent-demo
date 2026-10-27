@@ -72,6 +72,10 @@ SHOW_WORK = os.getenv("SHOW_WORK", "0") == "1"  # 數字題的答案沒寫出算
 ARITH_VERIFY = os.getenv("ARITH_VERIFY", "0") == "1"  # 答案裡的「算式＝數字」用計算機重算，算錯就附正確值退回
 CITE_READ = os.getenv("CITE_READ", "0") == "1"        # 引用的文件只看過片段 → 程式讀全文給模型核對
 TERM_CHECK = os.getenv("TERM_CHECK", "0") == "1"      # 「可以…嗎」問的動作在條文裡完全沒出現 → 找不到
+# 第 7 輪：公式／名單由程式從查到的條文解析（checks.py），答案的數字對不上就附上條文公式或那一句退回
+FORMULA_CHECK = os.getenv("FORMULA_CHECK", "0") == "1"  # 年終（月薪 × 基準 × 考績倍數）、平日加班費（時薪 ×（1＋加給）分段）
+KIN_LOOKUP = os.getenv("KIN_LOOKUP", "0") == "1"        # 喪假天數／奠儀金額：問到的親屬在名單哪一句，答案的數字要跟那一句一致
+_KIN_DEATH = re.compile(r"喪|過世|去世|往生|奠儀")
 _PERMIT_Q = re.compile(r"(可以|可不可以|能不能|能否|可否|能).{0,12}(嗎|？|\?)$")
 ACTION_MAP = [  # (問題裡的口語, 條文裡會出現的寫法)
     (("預支", "預借", "借支", "先借"), ("預支", "預借", "借支", "暫支", "預付")),
@@ -199,6 +203,18 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
                              + "\n\n".join(texts)[:8000]})
                 again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
                 ans = again or ans
+        # Harness 檢查 2e（第 7 輪）：條文公式由程式解析並算出應得數字，答案裡沒有這個數字 → 附公式退回一次
+        #   動機：年終漏乘基準（52,000 × 1.5）、加班費只算加給（180 × 1/3）；驗算 prompt 早就寫了「有基準就要乘基準」，8B 模型還是會漏
+        formula_fixed = False
+        if FORMULA_CHECK and ans and "只能回答" not in ans and "找不到" not in ans and outputs:
+            exp = checks.formula_expectation(question, "\n\n".join(o for o in outputs if "[[" in o))
+            if exp and not checks.has_value(ans, exp[0]):
+                formula_fixed = True
+                msgs.append({"role": "assistant", "content": ans})
+                msgs.append({"role": "user", "content": "（系統檢查）你的答案沒有算出條文公式的結果。" + exp[1]
+                             + "。\n請照這個公式用 calculate 重算，重寫完整答案（附算式與 [[檔名]] 出處，不要提到系統檢查）。"})
+                again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
+                ans = again or ans
         # Harness 檢查 2d：答案裡的算式用計算機重算，算錯就附正確值退回一次
         arith_fixed = False
         if ARITH_VERIFY and ans and "只能回答" not in ans:
@@ -211,6 +227,39 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
                              + "\n請用正確的數字重算後面所有用到它的步驟與總數，重寫完整答案（不要提到系統檢查）。"})
                 again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
                 ans = again or ans
+        # Harness 檢查 2f（第 7 輪）：問到名單上的親屬（含追問「如果是我太太呢？」），答案的天數／金額要跟條文那一句一致
+        #   動機：追問換親屬時答「配偶十四日」（條文沒有）。不一致 → 附上那一句退回；還是不一致 → 直接用那一句回答
+        kin_looked = False
+        if KIN_LOOKUP and ans and "只能回答" not in ans and "找不到" not in ans and outputs:
+            prev_q = next((m["content"] for m in reversed(history or []) if m.get("role") == "user"), "")
+            topic_text = question + " " + prev_q
+            topic = ("奠儀" if re.search(r"奠儀|白包", topic_text) else
+                     "喪假" if re.search(r"喪假|幾天|幾日|請假|請幾", topic_text) else None)
+            kins = checks.kin_terms(question, KIN_MAP)
+            evidence = "\n\n".join(o for o in outputs if "[[" in o)
+            rule = (checks.kin_rule(evidence, kins[0][1], topic)
+                    if topic and len(kins) == 1 and _KIN_DEATH.search(topic_text) else None)
+            if rule:
+                val, unit, seg, all_vals = rule
+
+                def _wrong(a: str) -> bool:
+                    got = checks.stated_values(a, unit)
+                    return val not in got or bool(got - all_vals)
+
+                if _wrong(ans):
+                    kin_looked = True
+                    kin, term = kins[0]
+                    msgs.append({"role": "assistant", "content": ans})
+                    msgs.append({"role": "user", "content": f"（系統檢查）條文原文：「{seg}」。員工問的是「{kin}」，條文用語是「{term}」，"
+                                 "請只依這一句重寫答案（附 [[檔名]] 出處，不要提到系統檢查）。"})
+                    again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
+                    ans = again or ans
+                    if _wrong(ans):
+                        src = next((o for o in outputs if "[[" in o and seg in re.sub(r"\s", "", o)), "")
+                        flat = re.sub(r"\s", "", src)
+                        files = re.findall(r"\[\[([^\]]+)\]\]", flat[:flat.find(seg)]) if src else []
+                        cite = f"[[{files[-1]}]]" if files else ""
+                        ans = f"{kin}屬於條文裡的「{term}」。依規定：「{seg}」{cite}。"
         # Harness 檢查 2b：問到條文沒列的親屬，答案卻不是找不到 → 改成找不到
         kin_fixed = False
         if KIN_CHECK and ans and "只能回答" not in ans and "找不到" not in ans and _KIN_TOPIC.search(question):
@@ -253,7 +302,7 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
     return {"answer": ans if ans is not None else "（超過工具呼叫上限）", "calls": calls, "outputs": outputs,
             "nudged": nudged, "calc_nudged": calc_nudged, "support_fixed": support_fixed,
             "kin_fixed": locals().get("kin_fixed", False), "cite_read": cite_read, "arith_fixed": arith_fixed,
-            "term_fixed": term_fixed}
+            "term_fixed": term_fixed, "formula_fixed": formula_fixed, "kin_looked": kin_looked}
 
 
 def grade(item: dict, out: dict) -> tuple[bool, str]:
@@ -269,6 +318,8 @@ def grade(item: dict, out: dict) -> tuple[bool, str]:
     cited = f"[[{item['expect_file']}]]" in ans
     norm = re.sub(r"\s", "", ans)
     content = any(all(k.replace(" ", "") in norm for k in group) for group in item["must_contain"])
+    # must_not_contain：答案寫了錯的結論（例：配偶喪假答「十四日」，但引用條文時又寫到正確的「八日」）
+    content = content and not any(k.replace(" ", "") in norm for k in item.get("must_not_contain", []))
     ok = read and cited and content
     return ok, f"看過全文={read} 引用正確={cited} 內容正確={content}" + ("（被提醒先查）" if out.get("nudged") else "") + ("（被要求驗算）" if out.get("calc_nudged") else "")
 
@@ -301,7 +352,9 @@ async def main() -> None:
             print(f"{'✅' if ok else '❌'} {it['q']}  ({dt:.1f}s, {len(out['calls'])} 次工具)  {why}")
             results.append({"q": it["q"], "ok": ok, "why": why, "seconds": round(dt, 1),
                             "calls": out["calls"], "answer": out["answer"],
-                            "nudged": out.get("nudged"), "calc_nudged": out.get("calc_nudged")})
+                            "nudged": out.get("nudged"), "calc_nudged": out.get("calc_nudged"),
+                            "fixes": [k for k in ("cite_read", "formula_fixed", "arith_fixed", "kin_looked", "kin_fixed",
+                                                  "support_fixed", "term_fixed") if out.get(k)]})
         print(f"\n通過 {passed}/{len(items)}")
         Path(a.out).parent.mkdir(parents=True, exist_ok=True)
         Path(a.out).write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")

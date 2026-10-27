@@ -33,6 +33,7 @@ def grade(item: dict, ans: str) -> tuple[bool, str]:
     cited = f"[[{item['expect_file']}]]" in ans or f"/docs/{quote(item['expect_file'])}" in ans
     norm = re.sub(r"\s", "", ans)
     content = any(all(k.replace(" ", "") in norm for k in g) for g in item["must_contain"])
+    content = content and not any(k.replace(" ", "") in norm for k in item.get("must_not_contain", []))  # 同 run_agent.grade
     return cited and content, f"引用正確={cited} 內容正確={content}"
 
 

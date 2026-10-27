@@ -48,7 +48,7 @@ push 到 master、對 master 開 PR 時自動跑（也可在 Actions 頁面手�
    - `tests/test_checks.py`：程式化檢查和工具（`agent/checks.py` 的算式重算、申請動作對照、引用讀全文；驗算觸發的算式偵測；計算機拒絕 `__import__` 這類程式碼、次方太大；中文數字加註）
    - `tests/test_regression.py`：回歸檢查和 README 分數區塊的邏輯
 2. **回歸檢查** `uv run python scripts/check_regression.py`
-   - 用**現在的**評分規則和題庫，重新評分已 commit 的結果（`harness/runs/<候選>__tune.json`、`__holdout.json`、`__holdout2.json`、`__holdout3.json`），分數要跟 `eval/latest.json` 一樣。改了 `grade()` 或題目、讓分數變了，一定會被抓到
+   - 用**現在的**評分規則和題庫，重新評分已 commit 的結果（`harness/runs/<候選>__tune.json`、`__holdout.json`、`__holdout2.json`、`__holdout3.json`、`__holdout4.json`），分數要跟 `eval/latest.json` 一樣。改了 `grade()` 或題目、讓分數變了，一定會被抓到
    - `eval/latest.json` 每一組答對的題數，不能低於基準 `eval/baseline.json`
    - README 最上面的分數區塊要跟 `eval/latest.json` 一致（不會出現 README 寫的分數跟實際結果對不上）
 
@@ -73,7 +73,7 @@ uv run python scripts/run_eval.py --from-existing --dry-run   # 只印出結果�
 它會依序：
 
 1. 檢查 Ollama、模型、MCP 伺服器有沒有開（沒開就說明原因、結束碼 2，什麼都不改）
-2. 跑調整組和三批隱藏組（跟 `harness/loop.py probe` 一樣：結果存 `harness/runs/`、記進 `harness/scoreboard.csv`）
+2. 跑調整組和四批隱藏組（跟 `harness/loop.py probe` 一樣：結果存 `harness/runs/`、記進 `harness/scoreboard.csv`）
 3. 寫 `eval/latest.json`（候選、模型、每組分數、平均秒數、時間）
 4. 跟基準 `eval/baseline.json` 比：**沒退步就把基準往上調**（基準只升不降）；任何一組退步就整份基準都不動，結束碼 1（README 區塊還是會寫成這次的分數，commit 上去 CI 會紅，提醒你分數掉了）
 5. 改寫 README 最上面 `<!-- EVAL:START -->` ～ `<!-- EVAL:END -->` 之間的分數區塊（不要手動改這段）
@@ -82,10 +82,11 @@ uv run python scripts/run_eval.py --from-existing --dry-run   # 只印出結果�
 
 ### 分數怎麼看
 
-- **調整組 tune（45 題）**：改進循環看得到錯題，有被「針對」過，分數偏樂觀。舊的 14 題驗收（`eval/questions.yaml`）都包含在裡面
-- **第 1 批隱藏組 holdout（17 題）**：題型類似、題目不同。它找到的錯誤類型（採購問題被拒答）在第 4 輪換個問法補進了調整組，所以不算完全沒看過
+- **調整組 tune（50 題）**：改進循環看得到錯題，有被「針對」過，分數偏樂觀。舊的 14 題驗收（`eval/questions.yaml`）都包含在裡面
+- **第 1 批隱藏組 holdout（17 題）**：題型類似、題目不同。它找到的錯誤類型（採購問題被拒答）在第 4 輪換個問法補進了調整組，所以不算完全沒看過；第 7 輪又把它的兩種錯誤類型（年終漏乘考績倍數、追問換親屬答錯天數）換問法補進調整組
 - **第 2 批隱藏組 holdout2（17 題）**：第 4 輪換上的全新題目，最接近真實表現
 - **第 3 批隱藏組 holdout3（9 題）**：第 5 輪換上，刻意出難題（名單外的親屬、條文沒列的情況、文件沒寫可不可以）。題數少，1 題就差 11%，只能當參考
+- **第 4 批隱藏組 holdout4（14 題）**：第 7 輪換上的全新題目，在看任何第 7 輪結果之前寫好。不過寫第 7 輪親屬對照（KIN_LOOKUP）的 agent 看過這批題目，親屬題不算完全隱藏（見[第 7 輪紀錄](harness.md#第-7-輪公式和喪假天數交給程式ollama-0409)）
 - **答對**：一般題要「看過正確文件的全文 ＋ 引用正確 ＋ 關鍵字對」三個都成立；拒答題要沒查就拒答；找不到題要查過、說找不到、請員工找人資或財務
 - **平均秒數**：每題從問問題到回答完成的時間（追問題含前一題），跟電腦的 GPU 和負載有關，只能在同一台電腦上比較
 - **CI 基準**：每組最少要答對幾題。同一題每次跑可能有 ±1 題的浮動，`eval/baseline.json` 的 `allowed_drop` 設定容許少幾題（目前設 1：少 1 題算正常浮動，少 2 題以上 CI 才會失敗）

@@ -50,7 +50,7 @@ def services_ready(model: str) -> str | None:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="本機完整評測（調整組＋三批隱藏組），更新 eval/latest.json、基準、README 分數區塊")
+    ap = argparse.ArgumentParser(description="本機完整評測（調整組＋四批隱藏組），更新 eval/latest.json、基準、README 分數區塊")
     ap.add_argument("--candidate", help="候選名稱（harness/candidates/ 底下），預設沿用 eval/latest.json 的候選")
     ap.add_argument("--splits", nargs="+", choices=list(scores.SPLITS), default=list(scores.SPLITS),
                     help="要重跑哪幾組（預設全部）；沒重跑的組沿用 harness/runs/ 既有的結果")
