@@ -53,3 +53,4 @@ time,candidate,split,passed,total,avg_seconds,wall_minutes
 2026-10-27 00:49,v9c（重新評分）,tune,47,50,8.8,0
 2026-10-27 01:00,v10a,tune,49,50,9.0,7.5
 2026-10-27 01:08,v10b,tune,48,50,8.6,7.2
+2026-10-27 09:56,v10c,tune,50,50,9.2,7.7
