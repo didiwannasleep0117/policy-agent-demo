@@ -3,7 +3,7 @@
   "q": "婚假怎麼請？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True",
-  "seconds": 14.6,
+  "seconds": 10.5,
   "calls": [
    [
     "search_related_policies",
@@ -21,7 +21,7 @@
   "q": "我下個月結婚，公司有結婚禮金嗎？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True",
-  "seconds": 4.8,
+  "seconds": 5.1,
   "calls": [
    [
     "search_related_policies",
@@ -39,7 +39,7 @@
   "q": "出差住飯店一晚最多可以報多少？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 11.0,
+  "seconds": 11.3,
   "calls": [
    [
     "search_related_policies",
@@ -57,7 +57,7 @@
   "q": "加班費可以換成補休嗎？要多久內休完？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True",
-  "seconds": 3.5,
+  "seconds": 3.6,
   "calls": [
    [
     "search_related_policies",
@@ -75,7 +75,7 @@
   "q": "公司附近有健身房優惠嗎？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True",
-  "seconds": 2.9,
+  "seconds": 3.0,
   "calls": [
    [
     "search_related_policies",
@@ -93,7 +93,7 @@
   "q": "考績拿 A 的話年終大概幾個月？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 12.9,
+  "seconds": 13.7,
   "calls": [
    [
     "search_related_policies",
@@ -111,7 +111,7 @@
   "q": "我 35 歲，可以每年做健康檢查嗎？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 10.9,
+  "seconds": 11.2,
   "calls": [
    [
     "search_related_policies",
@@ -129,7 +129,7 @@
   "q": "員工旅遊補助沒用完可以留到明年嗎？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True",
-  "seconds": 2.5,
+  "seconds": 2.6,
   "calls": [
    [
     "search_related_policies",
@@ -147,7 +147,7 @@
   "q": "那結婚有禮金嗎？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被提醒先查）",
-  "seconds": 9.4,
+  "seconds": 9.6,
   "calls": [
    [
     "search_related_policies",
@@ -165,7 +165,7 @@
   "q": "我月薪四萬，考績拿 B+，年終獎金大概多少錢？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 11.5,
+  "seconds": 12.1,
   "calls": [
    [
     "search_related_policies",
@@ -183,7 +183,7 @@
   "q": "我時薪 200 元，平日下班後加班 3 小時，加班費是多少？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被提醒先查）",
-  "seconds": 17.4,
+  "seconds": 18.1,
   "calls": [
    [
     "calculate",
@@ -210,7 +210,7 @@
   "q": "我 45 歲，健康檢查可以每年做嗎？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 9.7,
+  "seconds": 10.0,
   "calls": [
    [
     "search_related_policies",
@@ -228,7 +228,7 @@
   "q": "公司有提供停車位嗎？",
   "ok": true,
   "why": "查過且回答找不到",
-  "seconds": 1.9,
+  "seconds": 2.0,
   "calls": [
    [
     "search_related_policies",
@@ -246,7 +246,7 @@
   "q": "今天台北天氣如何？",
   "ok": true,
   "why": "拒答且未查工具",
-  "seconds": 0.8,
+  "seconds": 0.9,
   "calls": [],
   "answer": "抱歉，我只能回答星芽科技的規章與福利問題喔。",
   "nudged": false,
@@ -257,7 +257,7 @@
   "q": "奶奶過世可以請幾天喪假？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 10.2,
+  "seconds": 10.5,
   "calls": [
    [
     "search_related_policies",
@@ -275,7 +275,7 @@
   "q": "病假一年最多幾天？薪水怎麼算？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 14.2,
+  "seconds": 14.5,
   "calls": [
    [
     "list_all_filenames",
@@ -297,7 +297,7 @@
   "q": "太太生雙胞胎，生育補助可以領多少？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 10.6,
+  "seconds": 10.9,
   "calls": [
    [
     "search_related_policies",
@@ -315,7 +315,7 @@
   "q": "出國出差要飛 10 小時，可以坐豪華經濟艙嗎？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 7.9,
+  "seconds": 8.1,
   "calls": [
    [
     "search_related_policies",
@@ -333,7 +333,7 @@
   "q": "每個月加班時數有上限嗎？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True",
-  "seconds": 2.6,
+  "seconds": 2.7,
   "calls": [
    [
     "search_related_policies",
@@ -351,7 +351,7 @@
   "q": "加班到晚上十點，回家的計程車費可以報嗎？上限多少？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 13.3,
+  "seconds": 13.6,
   "calls": [
    [
     "search_related_policies",
@@ -369,7 +369,7 @@
   "q": "考績拿 A 的人數有限制嗎？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True",
-  "seconds": 2.1,
+  "seconds": 2.2,
   "calls": [
    [
     "search_related_policies",
@@ -405,7 +405,7 @@
   "q": "我想上一堂 3 萬元的線上課程，公司最多補助多少？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 13.9,
+  "seconds": 14.0,
   "calls": [
    [
     "search_related_policies",
@@ -423,7 +423,7 @@
   "q": "做健康檢查公司補助多少錢？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 9.4,
+  "seconds": 9.6,
   "calls": [
    [
     "search_related_policies",
@@ -441,7 +441,7 @@
   "q": "公司樓下的咖啡店有員工優惠嗎？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True",
-  "seconds": 3.4,
+  "seconds": 3.6,
   "calls": [
    [
     "search_related_policies",
@@ -459,7 +459,7 @@
   "q": "報帳的發票統一編號要寫什麼？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True",
-  "seconds": 2.6,
+  "seconds": 2.7,
   "calls": [
    [
     "search_related_policies",
@@ -477,7 +477,7 @@
   "q": "幫我寫一段 Python 的排序程式",
   "ok": true,
   "why": "拒答且未查工具",
-  "seconds": 0.8,
+  "seconds": 0.9,
   "calls": [],
   "answer": "抱歉，我只能回答星芽科技的規章與福利問題喔。",
   "nudged": false,
@@ -506,7 +506,7 @@
   "q": "那膳雜費一天可以報多少？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被提醒先查）（被要求驗算）",
-  "seconds": 17.6,
+  "seconds": 18.1,
   "calls": [
    [
     "search_related_policies",
@@ -524,7 +524,7 @@
   "q": "我到職剛滿 8 個月，今年的員工旅遊補助有多少？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 15.6,
+  "seconds": 15.9,
   "calls": [
    [
     "list_all_filenames",
@@ -552,7 +552,7 @@
   "q": "我月薪 5 萬，考績 C，年終獎金多少？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 10.6,
+  "seconds": 10.8,
   "calls": [
    [
     "search_related_policies",
@@ -570,7 +570,7 @@
   "q": "我到職 3 個月，有幾天特休？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 13.7,
+  "seconds": 14.0,
   "calls": [
    [
     "list_all_filenames",
@@ -598,7 +598,7 @@
   "q": "部門想訂一批總共 3 萬元的螢幕，要走什麼流程？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 18.8,
+  "seconds": 19.3,
   "calls": [
    [
     "search_related_policies",
@@ -616,7 +616,7 @@
   "q": "我自己先墊了 800 元買文具，要怎麼報帳？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 21.7,
+  "seconds": 22.4,
   "calls": [
    [
     "search_related_policies",
@@ -640,7 +640,7 @@
   "q": "報帳的錢什麼時候會撥下來？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True",
-  "seconds": 5.6,
+  "seconds": 5.8,
   "calls": [
    [
     "search_related_policies",
@@ -667,7 +667,7 @@
   "q": "出差前可以先跟公司預支旅費嗎？",
   "ok": true,
   "why": "查過且回答找不到",
-  "seconds": 5.6,
+  "seconds": 5.7,
   "calls": [
    [
     "search_related_policies",
@@ -687,7 +687,7 @@
   "q": "公司今年有尾牙嗎？",
   "ok": true,
   "why": "查過且回答找不到",
-  "seconds": 1.8,
+  "seconds": 2.1,
   "calls": [
    [
     "search_related_policies",
@@ -706,7 +706,7 @@
   "q": "幫我把這句翻成英文：我很喜歡我的工作",
   "ok": true,
   "why": "拒答且未查工具",
-  "seconds": 0.8,
+  "seconds": 0.9,
   "calls": [],
   "answer": "抱歉，我只能回答星芽科技的規章與福利問題喔。",
   "nudged": false,
@@ -717,7 +717,7 @@
   "q": "舅舅過世可以請喪假嗎？",
   "ok": true,
   "why": "查過且回答找不到",
-  "seconds": 3.6,
+  "seconds": 3.9,
   "calls": [
    [
     "search_related_policies",
@@ -757,7 +757,7 @@
   "q": "員工旅遊補助可以先預支嗎？",
   "ok": true,
   "why": "查過且回答找不到",
-  "seconds": 2.7,
+  "seconds": 2.8,
   "calls": [
    [
     "search_related_policies",
@@ -777,7 +777,7 @@
   "q": "兄弟姊妹過世可以請幾天喪假？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 12.8,
+  "seconds": 13.0,
   "calls": [
    [
     "search_related_policies",
@@ -795,7 +795,7 @@
   "q": "可以先預支下個月的薪水嗎？",
   "ok": true,
   "why": "查過且回答找不到",
-  "seconds": 2.3,
+  "seconds": 2.4,
   "calls": [
    [
     "search_related_policies",
@@ -815,7 +815,7 @@
   "q": "時薪 180 元，平日下班後加班 4 小時，加班費總共多少？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被提醒先查）（被要求驗算）",
-  "seconds": 20.0,
+  "seconds": 21.2,
   "calls": [
    [
     "calculate",
@@ -842,7 +842,7 @@
   "q": "報銷的款項幾號會匯進來？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 8.9,
+  "seconds": 9.1,
   "calls": [
    [
     "search_related_policies",
@@ -860,7 +860,7 @@
   "q": "我的月薪是 5 萬 2，今年考績打 A，年終可以領多少錢？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 13.1,
+  "seconds": 13.3,
   "calls": [
    [
     "search_related_policies",
@@ -880,7 +880,7 @@
   "q": "月薪 3 萬 6 的話，考績 B+ 年終會拿到多少？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 11.0,
+  "seconds": 11.2,
   "calls": [
    [
     "search_related_policies",
@@ -898,7 +898,7 @@
   "q": "那換成我媽媽過世，可以請幾天？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 20.5,
+  "seconds": 20.7,
   "calls": [
    [
     "search_related_policies",
@@ -916,7 +916,7 @@
   "q": "如果是我太太呢？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被提醒先查）",
-  "seconds": 22.7,
+  "seconds": 23.2,
   "calls": [
    [
     "search_related_policies",
@@ -936,7 +936,7 @@
   "q": "平日加班 2 小時，我的時薪是 250 元，能領多少加班費？",
   "ok": true,
   "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
-  "seconds": 16.1,
+  "seconds": 16.4,
   "calls": [
    [
     "search_related_policies",
@@ -951,5 +951,176 @@
   "fixes": [
    "arith_fixed"
   ]
+ },
+ {
+  "q": "時薪 260 元，平日下班後留下來加班 5 小時，總共可以領多少加班費？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 28.6,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "加班費計算方式"
+    }
+   ],
+   [
+    "read_specific_document",
+    {
+     "filename": "加班管理辦法.pdf"
+    }
+   ]
+  ],
+  "answer": "根據加班管理辦法，平日延長工時的計算方式如下：\n\n- 前 2 小時：每小時工資加給三分之一，即 260 元 × (1 + 1/3) = 346.67 元/小時  \n  前 2 小時加班費 = 346.67 元 × 2 = 693.34 元  \n\n- 第 3 至 5 小時（共 3 小時）：每小時工資加給三分之二，即 260 元 × (1 + 2/3) = 433.33 元/小時  \n  第 3 小時起加班費 = 433.33 元 × 3 = 1,300 元  \n\n總加班費 = 693.34 元 + 1,300 元 = **1,993.34 元**  \n\n✅ 總共可以領 1,993.34 元加班費 [[加班管理辦法.pdf]]  \n\n📄 參考文件：[[加班管理辦法.pdf]]",
+  "nudged": false,
+  "calc_nudged": true,
+  "fixes": [
+   "formula_fixed",
+   "arith_fixed"
+  ]
+ },
+ {
+  "q": "平日加班 6 小時，時薪 150 元，加班費要怎麼算？",
+  "ok": true,
+  "why": "看過全文=True 引用正確=True 內容正確=True（被要求驗算）",
+  "seconds": 25.1,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "平日加班費計算方式"
+    }
+   ]
+  ],
+  "answer": "平日加班費的計算方式如下：\n\n- 前 2 小時：按平日每小時工資加給三分之一，即 150 元 × (1 + 1/3) = 150 元 × 1.33 = 200 元/小時。\n- 第 3 小時起：按平日每小時工資加給三分之二，即 150 元 × (1 + 2/3) = 150 元 × 1.67 = 250 元/小時。\n\n因此，6 小時加班費計算如下：\n- 前 2 小時：2 小時 × 200 元 = 400 元。\n- 第 3 至 6 小時（共 4 小時）：4 小時 × 250 元 = 1,000 元。\n- 總加班費：400 元 + 1,000 元 = 1,400 元。\n\n申請方式：請於「星芽人」系統提出加班申請，經核准後，於每月薪資發放時一併發給。\n\n📄 參考文件：[[加班管理辦法.pdf]]",
+  "nudged": false,
+  "calc_nudged": true,
+  "fixes": [
+   "arith_fixed"
+  ]
+ },
+ {
+  "q": "妻子的祖母往生，可以請多久的喪假？",
+  "ok": false,
+  "why": "看過全文=True 引用正確=True 內容正確=False",
+  "seconds": 3.7,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "喪假時數"
+    }
+   ]
+  ],
+  "answer": "妻子的祖母往生，屬於「祖父母喪亡」的情況，根據《請假管理辦法.docx》的規定，給予喪假六日，工資照給，得於百日內分次申請。\n\n**申請方式**：\n- 透過 HR 系統「星芽人」線上申請。\n- 並於事後補附相關證明（如死亡證明）。\n\n📄 參考文件：[[請假管理辦法.docx]]",
+  "nudged": false,
+  "calc_nudged": false,
+  "fixes": []
+ },
+ {
+  "q": "那我太太的媽媽呢？",
+  "ok": false,
+  "why": "看過全文=True 引用正確=True 內容正確=False（被提醒先查）",
+  "seconds": 15.6,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "喪假怎麼請"
+    }
+   ]
+  ],
+  "answer": "員工的配偶的父母（即媳婦的父母）過世，可請喪假12日，工資照給。  \n**計算方式**：根據《請假管理辦法.docx》第三條，配偶的父母喪亡者喪假為12日，無需額外計算年資或其他條件，直接符合資格。  \n\n📄 參考文件：  \n[[請假管理辦法.docx]]",
+  "nudged": true,
+  "calc_nudged": false,
+  "fixes": []
+ },
+ {
+  "q": "丈夫的姊姊過世，我可以請喪假嗎？",
+  "ok": false,
+  "why": "應查詢後回答找不到",
+  "seconds": 4.6,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "喪假"
+    }
+   ]
+  ],
+  "answer": "根據《請假管理辦法.docx》的規定，您屬於「配偶之兄弟姊妹」的範疇，因此可以請喪假三日，工資照給。喪假得於百日內分次申請，請假應於 HR 系統「星芽人」線上申請。\n\n**申請方式：**\n1. 登入 HR 系統「星芽人」。\n2. 進入「請假申請」功能，選擇「喪假」。\n3. 填寫喪假原因及日期，並附上相關證明文件（如喪亡證明）。\n4. 提交申請後，等待主管核准。\n\n📄 參考文件：[[請假管理辦法.docx]]",
+  "nudged": false,
+  "calc_nudged": false,
+  "fixes": []
+ },
+ {
+  "q": "員工生日公司會發禮金嗎？",
+  "ok": true,
+  "why": "查過且回答找不到",
+  "seconds": 4.2,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "員工生日公司會發禮金嗎"
+    }
+   ]
+  ],
+  "answer": "根據文件內容，星芽科技對於員工生日並沒有明確的禮金發放規定。以下是相關資訊：\n\n- **生日禮金**：目前的規章文件中未提及員工生日會發放禮金 [[婚喪喜慶補助辦法.pdf]]。\n- **其他相關福利**：公司有提供婚假、喪假、生育補助、住院慰問等福利，但與生日無直接關聯 [[婚喪喜慶補助辦法.pdf]]。\n\n如需進一步確認或有其他福利問題，建議直接聯繫人資部。",
+  "nudged": false,
+  "calc_nudged": false,
+  "fixes": []
+ },
+ {
+  "q": "公司有補貼手機通訊費嗎？",
+  "ok": true,
+  "why": "查過且回答找不到",
+  "seconds": 4.6,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "公司有補貼手機通訊費嗎"
+    }
+   ],
+   [
+    "read_specific_document",
+    {
+     "filename": "加班管理辦法.pdf",
+     "by": "harness"
+    }
+   ],
+   [
+    "read_specific_document",
+    {
+     "filename": "請假管理辦法.docx",
+     "by": "harness"
+    }
+   ]
+  ],
+  "answer": "目前的規章文件裡沒有提到公司有補貼手機通訊費的相關規定。  \n\n建議直接聯繫人資部確認詳細資訊。  \n\n📄 參考文件：[[加班管理辦法.pdf]]、[[請假管理辦法.docx]]",
+  "nudged": false,
+  "calc_nudged": false,
+  "fixes": [
+   "cite_read"
+  ]
+ },
+ {
+  "q": "公司有幫員工保團體保險嗎？",
+  "ok": true,
+  "why": "查過且回答找不到",
+  "seconds": 2.3,
+  "calls": [
+   [
+    "search_related_policies",
+    {
+     "query": "公司有幫員工保團體保險嗎"
+    }
+   ]
+  ],
+  "answer": "目前的規章文件裡沒有提到公司是否為員工投保團體保險的資訊，建議直接聯繫人資部確認相關細節。",
+  "nudged": false,
+  "calc_nudged": false,
+  "fixes": []
  }
 ]
