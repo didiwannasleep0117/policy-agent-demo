@@ -149,3 +149,66 @@ def test_kin_rule_and_stated_values():
     assert checks.kin_rule(GIFT_EV, "配偶之父母", "奠儀") is None                    # 這一條沒列 → 不處理
     # 第 7 輪 v9c 的錯：引用條文寫到八日，結論又寫十四日（條文沒有的數字）
     assert checks.stated_values("配偶喪亡者給予喪假八日；但配偶喪亡為十四日，得於百日內分次申請", "日") == {8, 14}
+
+
+# ---- 第 8 輪：LaTeX 算式、兩個稱謂的親屬、文件沒寫的福利 ----
+
+def test_latex_to_plain_then_arith_verify():
+    latex = r"$240 \times (1 + \frac{2}{3}) \times 3 = 1{,}500$ 元 [[加班管理辦法.pdf]]"
+    plain = checks.latex_to_plain(latex)
+    assert "\\" not in plain and "$" not in plain and "[[加班管理辦法.pdf]]" in plain
+    assert checks.wrong_equations(latex) == []                       # 第 7 輪的漏洞：LaTeX 版讀不到
+    [(_, w, c)] = checks.wrong_equations(plain)                       # 轉換後抓得到
+    assert (w, c) == (1500, 1200)
+    assert checks.wrong_equations(checks.latex_to_plain(r"\[ 210 \times \left(1 + \dfrac{1}{3}\right) \times 2 = 560 \]")) == []
+    assert checks.latex_to_plain("加班費 1,080 元") == "加班費 1,080 元"  # 沒有 LaTeX 原樣回傳
+
+
+def test_formula_answer_fallback():
+    ans = checks.formula_answer("時薪 180 元，平日加班 4 小時，加班費總共多少？", OT_EV, [OT_EV])
+    assert "1,080" in ans and "[[加班管理辦法.pdf]]" in ans and "依規定" in ans
+    assert checks.formula_answer("每個月加班時數有上限嗎？", OT_EV, [OT_EV]) is None
+
+
+@pytest.mark.parametrize("q,want", [
+    ("老婆的爺爺過世，可以請幾天？", "配偶之祖父母"),
+    ("那我先生的祖父母過世呢？", "配偶之祖父母"),
+    ("那我太太的媽媽呢？", "配偶之父母"),
+    ("丈夫的姊姊過世可以請喪假嗎？", "配偶之兄弟姊妹"),
+    ("老公的舅舅過世呢？", "配偶之舅舅"),
+    ("如果是我太太呢？", None),            # 只有一個稱謂 → 照原本的 KIN_LOOKUP
+    ("奶奶過世可以請幾天？", None),
+])
+def test_compound_kin(q, want):
+    got = checks.compound_kin(q, run_agent.KIN_MAP)
+    assert (got is None) if want is None else got[1] == want
+
+
+def test_kin_listed():
+    assert "配偶之祖父母" in checks.kin_listed(LEAVE_EV, "喪假")
+    assert "配偶之兄弟姊妹" not in checks.kin_listed(LEAVE_EV, "喪假")
+    assert checks.kin_listed(GIFT_EV, "奠儀") == ["父母", "配偶", "子女", "祖父母"]
+    assert checks.kin_listed(OT_EV, "喪假") == []                 # 沒查到這一條 → 不下結論
+
+
+CORPUS = ("結婚禮金新台幣六千元。生育補助每胎八千元。住院慰問金二千元。健檢公假一日，補助健檢費用四千元。"
+          "外部課程補助兩萬元。居家辦公設備補助三千元。好眠健身房月費優惠。星光影城電影票每張兩百五十元。"
+          "交通以高鐵為原則。應於費用發生日起三十日內報銷。年終獎金以一點五個月薪資為基準。")
+
+
+@pytest.mark.parametrize("q,want", [
+    ("公司有托兒或育兒津貼嗎？", "托兒津貼、育兒津貼"),
+    ("公司有補貼手機通訊費嗎？", "手機通訊費"),
+    ("公司有子女教育補助嗎？", "子女教育補助"),
+    ("公司有結婚禮金嗎？", None),
+    ("看電影有員工優惠嗎？", None),          # 隔了功能詞：任兩個字（電影）出現就算有
+    ("公司附近有健身房優惠嗎？", None),
+    ("公司有沒有住院慰問金？", None),
+    ("可以申請居家辦公設備補助嗎？", None),
+    ("健檢補助多少錢？", None),             # 不是「有沒有」的問題
+    ("考績拿 A 的人數有限制嗎？", None),     # 沒有福利詞
+    ("員工生日公司會發禮金嗎？", None),       # 已知漏抓：「生日」在「發生日」裡找得到
+])
+def test_uncovered_benefit(q, want):
+    assert checks.uncovered_benefit(q, CORPUS) == want
+

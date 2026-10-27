@@ -219,3 +219,124 @@ def stated_values(answer: str, unit: str) -> set[float]:
     rx = rf"({_NUMTXT})\s*(?:個)?(?:工作)?[日天]" if unit == "日" else rf"(?:新台幣)?\s*({_NUMTXT})\s*元"
     vals = {cn_value(m.group(1)) for m in re.finditer(rx, answer)}
     return {v for v in vals if v is not None and v != 100}
+
+
+# ---- 第 8 輪：LaTeX 算式、兩個稱謂的親屬、文件沒寫的福利 ----
+
+def latex_to_plain(text: str) -> str:
+    """模型偶爾用 LaTeX 寫算式（`$240 \times (1 + \frac{2}{3}) = 400$`）：轉成一般算式，算式重算才讀得到，
+    聊天視窗也不會顯示一堆反斜線。沒有 LaTeX 的文字原樣回傳。"""
+    if "\\" not in text and "$" not in text:
+        return text
+    bs = chr(92)  # 反斜線（避免在 regex 字串裡層層跳脫）
+    s = text.replace(bs + "dfrac", bs + "frac").replace(bs + "tfrac", bs + "frac")
+    s = re.sub(r"[\\](?:text|mathrm|textbf|mathbf|operatorname)[{]([^{}]*)[}]", r"\1", s)
+    for _ in range(4):  # 由內而外處理巢狀分數
+        s2 = re.sub(r"[\\]frac[{]([^{}]*)[}][{]([^{}]*)[}]", r"(\1/\2)", s)
+        s2 = re.sub(r"[\\]frac(\d)(\d)", r"(\1/\2)", s2)
+        if s2 == s:
+            break
+        s = s2
+    s = s.replace("{,}", ",")
+    for cmd, rep in (("times", "×"), ("cdot", "×"), ("ast", "×"), ("div", "÷"), ("approx", "≈"),
+                     ("left", ""), ("right", ""), ("displaystyle", ""), ("qquad", " "), ("quad", " ")):
+        s = re.sub(r"[\\]" + cmd + r"(?![A-Za-z])", rep, s)
+    for tok, rep in ((bs + ",", " "), (bs + ";", " "), (bs + "!", ""), (bs + "%", "%"),
+                     (bs + "(", ""), (bs + ")", ""), (bs + "[", ""), (bs + "]", ""), ("$", "")):
+        s = s.replace(tok, rep)
+    s = re.sub(r"(?<![\[{])[{]([^{}\[\]]*)[}](?![}\]])", r"\1", s)  # 剩下的群組大括號（[[檔名]] 不動）
+    return s
+
+
+def formula_answer(question: str, evidence: str, outputs: list[str]) -> str | None:
+    """FORMULA_CHECK 退回一次還是錯時的保底答案：直接用程式從條文算出的公式和數字回答（附出處）。"""
+    exp = formula_expectation(question, evidence)
+    if not exp:
+        return None
+    _, why = exp
+    clause = re.search(r"條文原文：「(.+?)」", why)
+    cite = ""
+    if clause:
+        for o in outputs:
+            flat = re.sub(r"\s", "", o)
+            k = flat.find(clause.group(1)[:20])
+            if "[[" in o and k >= 0:
+                files = re.findall(r"\[\[([^\]]+)\]\]", flat[:k])
+                cite = f" [[{files[-1]}]]" if files else ""
+                break
+    return why.replace("條文原文：", "依規定") + f"。{cite}".rstrip() + "\n\n（金額以人資部實際核算為準。）"
+
+
+_SPOUSE_OF = re.compile(r"(太太|老婆|妻子|先生|老公|丈夫|配偶)(?:的|之)")
+
+
+def compound_kin(question: str, kin_map: dict[str, str]) -> tuple[str, str] | None:
+    """「老婆的爺爺」「先生的祖父母」「丈夫的姊姊」→（口語, 條文用語：配偶之祖父母／配偶之父母／配偶之兄弟姊妹）。
+    只處理「配偶的 X」這種兩個稱謂；不是這種結構回傳 None。"""
+    m = _SPOUSE_OF.search(question)
+    if not m:
+        return None
+    rest = kin_terms(question[m.end():], kin_map)
+    if not rest:
+        other = re.match(r"(舅舅|舅媽|姑姑|姑丈|叔叔|嬸嬸|伯父|伯母|阿姨|姨丈|表[哥姐姊弟妹]|堂[哥姐姊弟妹]|姪[子女]|外甥)",
+                         question[m.end():])
+        return (m.group(1) + "的" + other.group(1), "配偶之" + other.group(1)) if other else None
+    word, term = rest[0]
+    if term == "配偶":
+        return None
+    return m.group(1) + "的" + word, "配偶之" + term
+
+
+def kin_listed(evidence: str, topic: str) -> list[str]:
+    """這一條（喪假／奠儀）名單上列的所有親屬條文用語；查到的條文裡沒有這一條 → 空 list。"""
+    verb = "給予喪假" if topic == "喪假" else "致贈奠儀"
+    out = []
+    for m in _LIST_CLAUSE.finditer(_flat(evidence)):
+        if m.group(2).startswith(verb):
+            out += re.sub(r"^(?:同仁|員工)之", "", m.group(1)).split("、")
+    return out
+
+
+# 「公司有 X 津貼／補助嗎？」：X 在整個規章文件庫完全沒出現 → 文件沒有這項福利
+_BENEFIT = r"津貼|補助|補貼|禮金|慰問金|獎金|保險|福利|優惠|折扣"
+_STOP = r"公司|員工|同仁|有沒有|沒有|有|會|發放|發|給|提供|幫|每個月|每月|今年|我們|我|的|可以|申請|領|嗎|呢|請問|或|和|跟|與"
+_EXIST_Q = re.compile(r"有沒有|有.{0,16}(?:嗎|？|\?)|會.{0,12}(?:嗎|？|\?)")
+
+
+def _chunks(text: str) -> list[tuple[int, int, str]]:
+    """去掉功能詞後剩下的中文片段（位置、片段）。"""
+    marked = re.sub(rf"(?:{_BENEFIT}|{_STOP})", lambda m: "\0" * len(m.group(0)), text)
+    return [(m.start(), m.end(), m.group(0)) for m in re.finditer(r"[\u4e00-\u9fff]+", marked)]
+
+
+def uncovered_benefit(question: str, corpus: str) -> str | None:
+    """問「有沒有某項福利」，而問到的項目在整個文件庫都找不到 → 回傳那個項目；找得到或不是這種問題 → None。
+    緊鄰福利詞的修飾語（「伙食津貼」的伙食）要整段出現在文件裡；中間隔了功能詞的（「員工生日公司會發禮金」的生日）
+    只要任兩個字出現就算有（避免「看電影有員工優惠嗎」被誤判：文件有「電影票」）。"""
+    if not _EXIST_Q.search(question):
+        return None
+    q = re.sub(r"[\s\d]", "", question)
+    flat = re.sub(r"\s", "", corpus)
+    chunks = _chunks(q)
+    asked: list[tuple[str, bool, str]] = []  # (項目, 緊鄰福利詞, 顯示用的說法)
+    for b in re.finditer(_BENEFIT, q):
+        before = [c for c in chunks if c[1] <= b.start()]
+        after = [c for c in chunks if c[0] >= b.end()]
+        if before and before[-1][1] == b.start():         # 「伙食津貼」「子女教育補助」
+            # 「托兒或育兒津貼」：「或」前面那一段也算問到的項目
+            if len(before) >= 2 and q[before[-2][1]:before[-1][0]] in ("或", "和", "跟", "、"):
+                asked.append((before[-2][2], True, before[-2][2] + b.group(0)))
+            asked.append((before[-1][2], True, before[-1][2] + b.group(0)))
+        elif after and after[0][0] == b.end() and re.search(r"補貼|補助", b.group(0)):  # 「補貼手機通訊費」
+            asked.append((after[0][2], True, after[0][2]))
+        elif before:                                       # 「員工生日公司會發禮金」
+            asked.append((before[-1][2], False, before[-1][2] + b.group(0)))
+    asked = [(re.sub(r"費用?$", "", a) or a, adj, show) for a, adj, show in asked]
+    asked = [x for x in asked if len(x[0]) >= 2]
+    if not asked:
+        return None
+
+    def covered(a: str, adj: bool) -> bool:
+        return a in flat if adj else any(a[i:i + 2] in flat for i in range(len(a) - 1))
+
+    return None if any(covered(a, adj) for a, adj, _ in asked) else "、".join(dict.fromkeys(s for *_, s in asked))
