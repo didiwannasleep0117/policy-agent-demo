@@ -264,7 +264,7 @@ def formula_answer(question: str, evidence: str, outputs: list[str]) -> str | No
                 files = re.findall(r"\[\[([^\]]+)\]\]", flat[:k])
                 cite = f" [[{files[-1]}]]" if files else ""
                 break
-    return why.replace("條文原文：", "依規定") + f"。{cite}".rstrip() + "\n\n（金額以人資部實際核算為準。）"
+    return why.replace("條文原文：", "依規定").replace("。」", "」") + f"。{cite}".rstrip() + "\n\n（金額以人資部實際核算為準。）"
 
 
 _SPOUSE_OF = re.compile(r"(太太|老婆|妻子|先生|老公|丈夫|配偶)(?:的|之)")
@@ -299,7 +299,7 @@ def kin_listed(evidence: str, topic: str) -> list[str]:
 
 # 「公司有 X 津貼／補助嗎？」：X 在整個規章文件庫完全沒出現 → 文件沒有這項福利
 _BENEFIT = r"津貼|補助|補貼|禮金|慰問金|獎金|保險|福利|優惠|折扣"
-_STOP = r"公司|員工|同仁|有沒有|沒有|有|會|發放|發|給|提供|幫|每個月|每月|今年|我們|我|的|可以|申請|領|嗎|呢|請問|或|和|跟|與"
+_STOP = r"公司|員工|同仁|有沒有|沒有|有|會|發放|發|給|提供|幫|投保|保(?!險)|每個月|每月|今年|我們|我|的|可以|申請|領|嗎|呢|請問|或|和|跟|與"
 _EXIST_Q = re.compile(r"有沒有|有.{0,16}(?:嗎|？|\?)|會.{0,12}(?:嗎|？|\?)")
 
 
