@@ -31,7 +31,7 @@ H = ROOT / "harness"
 CANDS, RUNS, BOARD = H / "candidates", H / "runs", H / "scoreboard.csv"
 SPLITS = {"tune": ROOT / "eval" / "tune.yaml", "holdout": ROOT / "eval" / "holdout.yaml",
           "holdout2": ROOT / "eval" / "holdout2.yaml", "holdout3": ROOT / "eval" / "holdout3.yaml",
-          "holdout4": ROOT / "eval" / "holdout4.yaml"}
+          "holdout4": ROOT / "eval" / "holdout4.yaml", "holdout5": ROOT / "eval" / "holdout5.yaml"}
 sys.stdout.reconfigure(encoding="utf-8")
 
 

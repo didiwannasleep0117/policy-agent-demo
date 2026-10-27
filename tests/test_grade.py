@@ -187,7 +187,7 @@ def test_router_answered(route, out, want):
 
 # ---- 題庫本身 ----
 
-SPLIT_FILES = ["questions", "tune", "holdout", "holdout2", "holdout3", "holdout4"]
+SPLIT_FILES = ["questions", "tune", "holdout", "holdout2", "holdout3", "holdout4", "holdout5"]
 DOCS = {p.name for p in (ROOT / "data" / "docs").iterdir()}
 
 
