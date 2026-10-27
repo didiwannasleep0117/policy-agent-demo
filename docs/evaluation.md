@@ -48,7 +48,7 @@ push 到 master、對 master 開 PR 時自動跑（也可在 Actions 頁面手�
    - `tests/test_checks.py`：程式化檢查和工具（`agent/checks.py` 的算式重算、申請動作對照、引用讀全文；驗算觸發的算式偵測；計算機拒絕 `__import__` 這類程式碼、次方太大；中文數字加註）
    - `tests/test_regression.py`：回歸檢查和 README 分數區塊的邏輯
 2. **回歸檢查** `uv run python scripts/check_regression.py`
-   - 用**現在的**評分規則和題庫，重新評分已 commit 的結果（`harness/runs/<候選>__tune.json`、`__holdout.json`、`__holdout2.json`、`__holdout3.json`、`__holdout4.json`），分數要跟 `eval/latest.json` 一樣。改了 `grade()` 或題目、讓分數變了，一定會被抓到
+   - 用**現在的**評分規則和題庫，重新評分已 commit 的結果（`harness/runs/<候選>__tune.json`、`__holdout.json`、`__holdout2.json`、`__holdout3.json`、`__holdout4.json`、`__holdout5.json`），分數要跟 `eval/latest.json` 一樣。改了 `grade()` 或題目、讓分數變了，一定會被抓到
    - `eval/latest.json` 每一組答對的題數，不能低於基準 `eval/baseline.json`
    - README 最上面的分數區塊要跟 `eval/latest.json` 一致（不會出現 README 寫的分數跟實際結果對不上）
 
@@ -62,7 +62,7 @@ push 到 master、對 master 開 PR 時自動跑（也可在 Actions 頁面手�
 ```bash
 # 先開 Ollama（預設 http://127.0.0.1:11434，可用環境變數 OLLAMA_URL 改；要有 qwen3:8b 和 bge-m3）
 # 和規章 MCP 伺服器：uv run policy-mcp（預設 http://127.0.0.1:8000/mcp，可用 MCP_URL 改）
-uv run python scripts/run_eval.py                    # 評目前的候選（eval/latest.json 裡記的，現在是 v9c），四組 88 題都跑，約 12 分鐘
+uv run python scripts/run_eval.py                    # 評目前的候選（eval/latest.json 裡記的），調整組＋五批隱藏組 129 題都跑，約 25 分鐘
 uv run python scripts/run_eval.py --splits tune      # 只重跑調整組，其他組沿用既有結果
 uv run python scripts/run_eval.py --candidate v8     # 換候選（harness/candidates/v8）
 uv run python scripts/run_eval.py --from-existing    # 不跑模型：用 harness/runs/ 既有的結果重新評分（改了評分規則、或只想更新 README）
@@ -73,7 +73,7 @@ uv run python scripts/run_eval.py --from-existing --dry-run   # 只印出結果�
 它會依序：
 
 1. 檢查 Ollama、模型、MCP 伺服器有沒有開（沒開就說明原因、結束碼 2，什麼都不改）
-2. 跑調整組和四批隱藏組（跟 `harness/loop.py probe` 一樣：結果存 `harness/runs/`、記進 `harness/scoreboard.csv`）
+2. 跑調整組和五批隱藏組（跟 `harness/loop.py probe` 一樣：結果存 `harness/runs/`、記進 `harness/scoreboard.csv`）
 3. 寫 `eval/latest.json`（候選、模型、每組分數、平均秒數、時間）
 4. 跟基準 `eval/baseline.json` 比：**沒退步就把基準往上調**（基準只升不降）；任何一組退步就整份基準都不動，結束碼 1（README 區塊還是會寫成這次的分數，commit 上去 CI 會紅，提醒你分數掉了）
 5. 改寫 README 最上面 `<!-- EVAL:START -->` ～ `<!-- EVAL:END -->` 之間的分數區塊（不要手動改這段）
@@ -82,7 +82,7 @@ uv run python scripts/run_eval.py --from-existing --dry-run   # 只印出結果�
 
 ### 分數怎麼看
 
-- **調整組 tune（50 題）**：改進循環看得到錯題，有被「針對」過，分數偏樂觀。舊的 14 題驗收（`eval/questions.yaml`）都包含在裡面
+- **調整組 tune（58 題）**：改進循環看得到錯題，有被「針對」過，分數偏樂觀。舊的 14 題驗收（`eval/questions.yaml`）都包含在裡面
 - **第 1 批隱藏組 holdout（17 題）**：題型類似、題目不同。它找到的錯誤類型（採購問題被拒答）在第 4 輪換個問法補進了調整組，所以不算完全沒看過；第 7 輪又把它的兩種錯誤類型（年終漏乘考績倍數、追問換親屬答錯天數）換問法補進調整組
 - **第 2 批隱藏組 holdout2（17 題）**：第 4 輪換上的全新題目，最接近真實表現
 - **第 3 批隱藏組 holdout3（9 題）**：第 5 輪換上，刻意出難題（名單外的親屬、條文沒列的情況、文件沒寫可不可以）。題數少，1 題就差 11%，只能當參考
