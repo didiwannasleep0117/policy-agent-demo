@@ -96,12 +96,15 @@ def main() -> int:
         scores.write_json(scores.LATEST, latest)
         if base != old_base:
             scores.write_json(scores.BASELINE, base)
-        text = scores.read_text(scores.README)
-        new = scores.replace_block(text, block)
-        if new != text:
-            scores.write_text_keep_eol(scores.README, new)
+        changed = []
+        for lang, path in scores.READMES.items():
+            text = scores.read_text(path)
+            new = scores.replace_block(text, scores.render_block(latest, base, lang))
+            if new != text:
+                scores.write_text_keep_eol(path, new)
+                changed.append(path.name)
         print("\n已更新 eval/latest.json" + ("、eval/baseline.json" if base != old_base else "") +
-              ("、README.md" if new != text else "（README 不用改）"))
+              ("、" + "、".join(changed) if changed else "（README 不用改）"))
     if fails:
         print("有退步：基準沒有更新（同一題每次跑可能 ±1，確定要接受就加 --accept）")
     return 1 if fails else 0
