@@ -38,10 +38,15 @@ index = PolicyIndex(cfg)
 mcp = FastMCP(
     "policy-docs",
     instructions="公司規章與福利文件庫。先用 search_related_policies 或 list_all_filenames 找檔案，再用 read_specific_document 讀全文後回答。",
-    host=os.getenv("HOST", "0.0.0.0"),
+    # 預設只聽本機；Docker 裡的 n8n 透過 host.docker.internal 也連得到（跟 Ollama 一樣）
+    host=os.getenv("HOST", "127.0.0.1"),
     port=int(os.getenv("PORT", "8000")),
-    # Demo 在本機與 Docker（host.docker.internal）之間連線，關掉 Host 標頭檢查
-    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+    # 只接受本機與 Docker 的 Host 標頭，擋 DNS rebinding（惡意網頁冒充 localhost 呼叫工具）
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=["127.0.0.1:*", "localhost:*", "host.docker.internal:*"],
+        allowed_origins=["http://127.0.0.1:*", "http://localhost:*", "http://host.docker.internal:*"],
+    ),
 )
 
 
