@@ -3,6 +3,7 @@
 用法：
   uv run python agent/run_agent.py "婚假怎麼請？"
   uv run python agent/run_agent.py --eval            # 跑 eval/questions.yaml
+  uv run python agent/run_agent.py --eval --trace    # 同上，每題的每一步寫進 traces/<run-id>.jsonl（也可用 TRACE=1）
 環境變數：MCP_URL（預設 http://127.0.0.1:8000/mcp）、OLLAMA_URL、CHAT_MODEL（預設 qwen3:8b）
 """
 from __future__ import annotations
@@ -24,6 +25,8 @@ from mcp.client.streamable_http import streamablehttp_client
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import checks  # noqa: E402
+import tracing  # noqa: E402
+TRACE = tracing.Tracer()  # 預設關閉（空操作）；main() 依 --trace／TRACE=1 換成真的
 MCP_URL = os.getenv("MCP_URL", "http://127.0.0.1:8000/mcp")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
 MODEL = os.getenv("CHAT_MODEL", "qwen3:8b")
@@ -121,13 +124,17 @@ FRESH_RECHECK = Path(_rp).read_text(encoding="utf-8") if _rp else (
 
 async def _tool_loop(session, http, msgs, ollama_tools, think, calls, outputs, verbose):
     """跑到模型不再呼叫工具為止，回傳最後的文字答案（None＝超過步數）。"""
-    for _ in range(MAX_STEPS):
-        r = await http.post(f"{OLLAMA_URL}/api/chat", json={
-            "model": MODEL, "messages": msgs, "tools": ollama_tools, "stream": False,
-            "think": think, "options": {"temperature": 0},
-        })
-        r.raise_for_status()
-        msg = r.json()["message"]
+    for step in range(MAX_STEPS):
+        with TRACE.span("llm.chat", "llm", model=MODEL, think=think, step=step, n_messages=len(msgs)) as sp:
+            r = await http.post(f"{OLLAMA_URL}/api/chat", json={
+                "model": MODEL, "messages": msgs, "tools": ollama_tools, "stream": False,
+                "think": think, "options": {"temperature": 0},
+            })
+            r.raise_for_status()
+            data = r.json()
+            if TRACE.enabled:
+                sp.update(tracing.llm_attrs(data))
+        msg = data["message"]
         msgs.append(msg)
         if not msg.get("tool_calls"):
             return msg.get("content", "").strip()
@@ -136,16 +143,34 @@ async def _tool_loop(session, http, msgs, ollama_tools, think, calls, outputs, v
             calls.append((name, args))
             if verbose:
                 print(f"  🔧 {name}({json.dumps(args, ensure_ascii=False)})", file=sys.stderr)
-            res = await session.call_tool(name, args)
-            text = "\n".join(c.text for c in res.content if getattr(c, "text", None))
+            text = await _call(session, name, args, "model")
             outputs.append(text)
             msgs.append({"role": "tool", "content": text, "tool_name": name})
     return None
 
 
+async def _call(session, name: str, args: dict, by: str) -> str:
+    """呼叫 MCP 工具、回傳文字結果；有開追蹤就記一個 tool span（by：model＝模型要求的、harness＝程式檢查自己呼叫的）。"""
+    with TRACE.span(f"tool.{name}", "tool", tool=name, args=dict(args), by=by) as sp:
+        res = await session.call_tool(name, args)
+        text = "\n".join(c.text for c in res.content if getattr(c, "text", None))
+        if TRACE.enabled:
+            sp.update(tracing.tool_attrs(name, text))
+    return text
+
+
+def _latex(ans: str, where: str) -> str:
+    """LATEX_PLAIN 的轉換；有改到文字才記一筆。"""
+    new = checks.latex_to_plain(ans)
+    if new != ans:
+        TRACE.event("check.LATEX_PLAIN", action="rewrite", where=where)
+    return new
+
+
 async def ask(session: ClientSession, question: str, verbose: bool = True, history: list | None = None) -> dict:
     """history：先前對話（[{role, content}, ...]），用來測追問。"""
-    tools = (await session.list_tools()).tools
+    with TRACE.span("mcp.list_tools", "tool"):
+        tools = (await session.list_tools()).tools
     ollama_tools = [
         {"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.inputSchema}}
         for t in tools
@@ -161,20 +186,22 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
         if ans is not None and not looked and "只能回答" not in ans:
             nudged = True
             msgs.append({"role": "user", "content": "（系統檢查）你還沒有查詢任何文件。請先用 search_related_policies 查詢後再回答。"})
-            ans = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
+            with TRACE.span("check.DOC_CHECK", "check", retry=True, reason="沒查文件就回答"):
+                ans = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
         # Harness 檢查 1b：沒查文件就拒答 → 自己搜一次，文件庫裡明顯有相關內容就退回
         refused_early = ans is not None and "只能回答" in ans and not any(n.endswith(_DOC_TOOLS) for n, _ in calls)
         if REFUSE_CHECK and refused_early:
-            res = await session.call_tool("search_related_policies", {"query": question})
-            hits = "\n".join(c.text for c in res.content if getattr(c, "text", None))
-            sims = [float(x) for x in _SIM.findall(hits)]
-            if (sims and max(sims) >= REFUSE_THRESHOLD) or _COMPANY_WORDS.search(question):
-                nudged = True
-                calls.append(("search_related_policies", {"query": question, "by": "harness"}))
-                outputs.append(hits)
-                msgs.append({"role": "user", "content": "（系統檢查）文件庫裡有可能相關的內容，這題可能是公司制度問題。以下是搜尋結果，請根據它回答；"
-                             "如果文件裡真的沒有答案，就照規定回答找不到並建議聯繫人資部，不要拒答。\n\n" + hits})
-                ans = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
+            with TRACE.span("check.REFUSE_CHECK", "check", retry=False, reason="沒查文件就拒答") as chk:
+                hits = await _call(session, "search_related_policies", {"query": question}, "harness")
+                sims = [float(x) for x in _SIM.findall(hits)]
+                if (sims and max(sims) >= REFUSE_THRESHOLD) or _COMPANY_WORDS.search(question):
+                    chk.update(retry=True, best_score=max(sims) if sims else None)
+                    nudged = True
+                    calls.append(("search_related_policies", {"query": question, "by": "harness"}))
+                    outputs.append(hits)
+                    msgs.append({"role": "user", "content": "（系統檢查）文件庫裡有可能相關的內容，這題可能是公司制度問題。以下是搜尋結果，請根據它回答；"
+                                 "如果文件裡真的沒有答案，就照規定回答找不到並建議聯繫人資部，不要拒答。\n\n" + hits})
+                    ans = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
         # Harness 檢查 2：答案有心算的算式（或問題本身涉及數字）卻沒用計算機 → 驗算
         used_calc = any(n.endswith("calculate") for n, _ in calls)
         refused = ans is not None and "只能回答" in ans
@@ -182,69 +209,74 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
         trigger = ans is not None and not refused and (no_work or not used_calc) and (
             bool(_ARITH.search(ans)) or (NUMERIC_TRIGGER and bool(_NUMERIC_Q.search(question))))
         if CALC_CHECK and trigger:
-            calc_nudged = True
-            if RECHECK_MODE == "fresh" and outputs:
-                evidence = "\n\n".join(o for o in outputs if "[[" in o)[:8000]  # 只給文件內容，不給計算機結果
-                fresh = [{"role": "system", "content": SYSTEM},
-                         {"role": "user", "content": FRESH_RECHECK.format(q=question, evidence=evidence)}]
-                again = await _tool_loop(session, http, fresh, ollama_tools, RECHECK_THINK or THINK, calls, outputs, verbose)
-            else:
-                msgs.append({"role": "user", "content": "（系統檢查）你的回答裡有計算，但沒有使用 calculate 工具。請先重新確認條文裡的公式（基準、倍數、分段），再用 calculate 算出每一個數字，最後重寫答案。"})
-                again = await _tool_loop(session, http, msgs, ollama_tools, RECHECK_THINK or THINK, calls, outputs, verbose)
-            ans = again if again else ans
+            with TRACE.span("check.CALC_CHECK", "check", retry=True, mode=RECHECK_MODE, think=RECHECK_THINK or THINK,
+                            reason="數字題送驗算" + ("（答案沒寫算式）" if no_work else "")):
+                calc_nudged = True
+                if RECHECK_MODE == "fresh" and outputs:
+                    evidence = "\n\n".join(o for o in outputs if "[[" in o)[:8000]  # 只給文件內容，不給計算機結果
+                    fresh = [{"role": "system", "content": SYSTEM},
+                             {"role": "user", "content": FRESH_RECHECK.format(q=question, evidence=evidence)}]
+                    again = await _tool_loop(session, http, fresh, ollama_tools, RECHECK_THINK or THINK, calls, outputs, verbose)
+                else:
+                    msgs.append({"role": "user", "content": "（系統檢查）你的回答裡有計算，但沒有使用 calculate 工具。請先重新確認條文裡的公式（基準、倍數、分段），再用 calculate 算出每一個數字，最後重寫答案。"})
+                    again = await _tool_loop(session, http, msgs, ollama_tools, RECHECK_THINK or THINK, calls, outputs, verbose)
+                ans = again if again else ans
         # Harness 檢查 2c：引用的文件只看過片段 → 程式讀全文，請模型核對後重寫
         cite_read = False
         if CITE_READ and ans and "只能回答" not in ans:
             missing = checks.unread_citations(ans, outputs)[:2]
             if missing:
-                texts = []
-                for f in missing:
-                    res = await session.call_tool("read_specific_document", {"filename": f})
-                    text = "\n".join(c.text for c in res.content if getattr(c, "text", None))
-                    calls.append(("read_specific_document", {"filename": f, "by": "harness"}))
-                    outputs.append(text)
-                    texts.append(text)
-                cite_read = True
-                msgs.append({"role": "user", "content": "（系統檢查）你引用的文件只看過片段。以下是全文，請核對數字、日期與條件後重寫答案，只根據全文回答。\n\n"
-                             + "\n\n".join(texts)[:8000]})
-                again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
-                ans = again or ans
+                with TRACE.span("check.CITE_READ", "check", retry=True, files=list(missing), reason="引用的文件只看過片段"):
+                    texts = []
+                    for f in missing:
+                        text = await _call(session, "read_specific_document", {"filename": f}, "harness")
+                        calls.append(("read_specific_document", {"filename": f, "by": "harness"}))
+                        outputs.append(text)
+                        texts.append(text)
+                    cite_read = True
+                    msgs.append({"role": "user", "content": "（系統檢查）你引用的文件只看過片段。以下是全文，請核對數字、日期與條件後重寫答案，只根據全文回答。\n\n"
+                                 + "\n\n".join(texts)[:8000]})
+                    again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
+                    ans = again or ans
         # Harness 檢查 2e（第 7 輪）：條文公式由程式解析並算出應得數字，答案裡沒有這個數字 → 附公式退回一次
         #   動機：年終漏乘基準（52,000 × 1.5）、加班費只算加給（180 × 1/3）；驗算 prompt 早就寫了「有基準就要乘基準」，8B 模型還是會漏
         formula_fixed = formula_fallback = False
         if LATEX_PLAIN and ans:
-            ans = checks.latex_to_plain(ans)
+            ans = _latex(ans, "before_formula_check")
         if FORMULA_CHECK and ans and "只能回答" not in ans and "找不到" not in ans and outputs:
             exp = checks.formula_expectation(question, "\n\n".join(o for o in outputs if "[[" in o))
             if exp and not checks.has_value(ans, exp[0]):
-                formula_fixed = True
-                msgs.append({"role": "assistant", "content": ans})
-                msgs.append({"role": "user", "content": "（系統檢查）你的答案沒有算出條文公式的結果。" + exp[1]
-                             + "。\n請照這個公式用 calculate 重算，重寫完整答案（附算式與 [[檔名]] 出處，不要提到系統檢查）。"})
-                again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
-                ans = again or ans
-                if LATEX_PLAIN:
-                    ans = checks.latex_to_plain(ans)
-                # 第 8 輪：退回一次還是沒有應得數字 → 保底，直接用程式從條文算出的公式回答
-                if FORMULA_FALLBACK and not checks.has_value(ans, exp[0]):
-                    fb = checks.formula_answer(question, "\n\n".join(o for o in outputs if "[[" in o), outputs)
-                    if fb:
-                        formula_fallback = True
-                        ans = fb
+                with TRACE.span("check.FORMULA_CHECK", "check", retry=True, expected=exp[0], reason="答案沒有條文公式算出的數字"):
+                    formula_fixed = True
+                    msgs.append({"role": "assistant", "content": ans})
+                    msgs.append({"role": "user", "content": "（系統檢查）你的答案沒有算出條文公式的結果。" + exp[1]
+                                 + "。\n請照這個公式用 calculate 重算，重寫完整答案（附算式與 [[檔名]] 出處，不要提到系統檢查）。"})
+                    again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
+                    ans = again or ans
+                    if LATEX_PLAIN:
+                        ans = _latex(ans, "after_formula_retry")
+                    # 第 8 輪：退回一次還是沒有應得數字 → 保底，直接用程式從條文算出的公式回答
+                    if FORMULA_FALLBACK and not checks.has_value(ans, exp[0]):
+                        fb = checks.formula_answer(question, "\n\n".join(o for o in outputs if "[[" in o), outputs)
+                        if fb:
+                            formula_fallback = True
+                            ans = fb
+                            TRACE.event("check.FORMULA_FALLBACK", action="rewrite", reason="退回一次還是錯，改用程式算的公式回答")
         # Harness 檢查 2d：答案裡的算式用計算機重算，算錯就附正確值退回一次
         arith_fixed = False
         if ARITH_VERIFY and ans and "只能回答" not in ans:
             bad = checks.wrong_equations(ans)
             if bad:
-                arith_fixed = True
-                lines = "\n".join(f"- {e} 你寫 {w:g}，正確是 {c:g}" for e, w, c in bad)
-                msgs.append({"role": "assistant", "content": ans})
-                msgs.append({"role": "user", "content": "（系統檢查）以下算式的結果算錯了：\n" + lines
-                             + "\n請用正確的數字重算後面所有用到它的步驟與總數，重寫完整答案（不要提到系統檢查）。"})
-                again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
-                ans = again or ans
-                if LATEX_PLAIN:
-                    ans = checks.latex_to_plain(ans)
+                with TRACE.span("check.ARITH_VERIFY", "check", retry=True, wrong=[f"{e} = {w:g}（應為 {c:g}）" for e, w, c in bad]):
+                    arith_fixed = True
+                    lines = "\n".join(f"- {e} 你寫 {w:g}，正確是 {c:g}" for e, w, c in bad)
+                    msgs.append({"role": "assistant", "content": ans})
+                    msgs.append({"role": "user", "content": "（系統檢查）以下算式的結果算錯了：\n" + lines
+                                 + "\n請用正確的數字重算後面所有用到它的步驟與總數，重寫完整答案（不要提到系統檢查）。"})
+                    again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
+                    ans = again or ans
+                    if LATEX_PLAIN:
+                        ans = _latex(ans, "after_arith_retry")
         # Harness 檢查 2f（第 7 輪）：問到名單上的親屬（含追問「如果是我太太呢？」），答案的天數／金額要跟條文那一句一致
         #   動機：追問換親屬時答「配偶十四日」（條文沒有）。不一致 → 附上那一句退回；還是不一致 → 直接用那一句回答
         kin_looked = False
@@ -262,6 +294,7 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
                 listed = checks.kin_listed(evidence, topic) if topic and _KIN_DEATH.search(topic_text) else []
                 if listed and comp[1] not in listed:
                     kin_looked = True
+                    TRACE.event("check.KIN_COMPOUND", action="rewrite", kin=comp[0], term=comp[1], listed=listed)
                     ans = (f"規章的{topic}條文列出的親屬是：{'、'.join(listed)}，沒有「{comp[1]}」（{comp[0]}），"
                            "所以文件沒有這種情況的規定。\n\n" + NOT_FOUND)
             rule = (checks.kin_rule(evidence, kins[0][1], topic)
@@ -274,25 +307,29 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
                     return val not in got or bool(got - all_vals)
 
                 if _wrong(ans):
-                    kin_looked = True
-                    kin, term = kins[0]
-                    msgs.append({"role": "assistant", "content": ans})
-                    msgs.append({"role": "user", "content": f"（系統檢查）條文原文：「{seg}」。員工問的是「{kin}」，條文用語是「{term}」，"
-                                 "請只依這一句重寫答案（附 [[檔名]] 出處，不要提到系統檢查）。"})
-                    again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
-                    ans = again or ans
-                    if _wrong(ans):
-                        src = next((o for o in outputs if "[[" in o and seg in re.sub(r"\s", "", o)), "")
-                        flat = re.sub(r"\s", "", src)
-                        files = re.findall(r"\[\[([^\]]+)\]\]", flat[:flat.find(seg)]) if src else []
-                        cite = f"[[{files[-1]}]]" if files else ""
-                        ans = f"{kin}屬於條文裡的「{term}」。依規定：「{seg}」{cite}。"
+                    with TRACE.span("check.KIN_LOOKUP", "check", retry=True, kin=kins[0][0], term=kins[0][1], expected=val,
+                                    unit=unit):
+                        kin_looked = True
+                        kin, term = kins[0]
+                        msgs.append({"role": "assistant", "content": ans})
+                        msgs.append({"role": "user", "content": f"（系統檢查）條文原文：「{seg}」。員工問的是「{kin}」，條文用語是「{term}」，"
+                                     "請只依這一句重寫答案（附 [[檔名]] 出處，不要提到系統檢查）。"})
+                        again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
+                        ans = again or ans
+                        if _wrong(ans):
+                            src = next((o for o in outputs if "[[" in o and seg in re.sub(r"\s", "", o)), "")
+                            flat = re.sub(r"\s", "", src)
+                            files = re.findall(r"\[\[([^\]]+)\]\]", flat[:flat.find(seg)]) if src else []
+                            cite = f"[[{files[-1]}]]" if files else ""
+                            ans = f"{kin}屬於條文裡的「{term}」。依規定：「{seg}」{cite}。"
+                            TRACE.event("check.KIN_LOOKUP.fallback", action="rewrite", reason="退回一次還是不一致，直接用條文那一句回答")
         # Harness 檢查 2b：問到條文沒列的親屬，答案卻不是找不到 → 改成找不到
         kin_fixed = False
         if KIN_CHECK and ans and "只能回答" not in ans and "找不到" not in ans and _KIN_TOPIC.search(question):
             other = _KIN_OTHER.search(question)
             if other and not any(k in question for k in KIN_MAP):
                 kin_fixed = True
+                TRACE.event("check.KIN_CHECK", action="rewrite", kin=other.group(0))
                 ans = (f"規章裡相關條文列出的親屬沒有「{other.group(0)}」，所以文件沒有這種情況的規定。\n\n" + NOT_FOUND)
         # Harness 檢查 3：是非題的結論要有條文明確支持，否則改成找不到
         support_fixed = False
@@ -303,15 +340,19 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
                     "format": {"type": "object", "properties": {"supported": {"type": "boolean"}, "reason": {"type": "string"}},
                                "required": ["supported"]},
                     "messages": [{"role": "user", "content": SUPPORT_PROMPT.format(q=question, a=ans, evidence=evidence)}]}
-            r = await http.post(f"{OLLAMA_URL}/api/chat", json=body)
-            try:
-                verdict = json.loads(r.json()["message"]["content"])
-            except (ValueError, KeyError):
-                verdict = {"supported": True}
+            with TRACE.span("check.SUPPORT_CHECK", "check", retry=False, model=MODEL, think=True) as chk:
+                r = await http.post(f"{OLLAMA_URL}/api/chat", json=body)
+                try:
+                    verdict = json.loads(r.json()["message"]["content"])
+                except (ValueError, KeyError):
+                    verdict = {"supported": True}
+                if TRACE.enabled:
+                    chk.update(verdict=verdict)
             if verbose:
                 print("  核對：", verdict)
             if verdict.get("supported") is False:
                 support_fixed = True
+                TRACE.event("check.SUPPORT_CHECK.rewrite", action="rewrite")
                 ans = NOT_FOUND
         # Harness 檢查 4：問到「申請動作」（預支、分期…），條文裡完全沒有這個動作的任何寫法 → 文件沒有規定
         #   第一版讓模型自己抽關鍵詞＋同義詞，結果抽出「每年檢查」「延後使用」這種條文不會用的說法，誤殺 6 題；
@@ -324,6 +365,7 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
                 hit = next((w for w in words if w in question), None)
                 if hit and checks.term_in_evidence(doc_words, evidence) is None:
                     term_fixed = True
+                    TRACE.event("check.TERM_CHECK", action="rewrite", term=hit)
                     ans = f"查到的規章條文裡沒有「{hit}」的相關規定，所以無法確定可不可以。\n\n" + NOT_FOUND
                     break
         # Harness 檢查 5（第 8 輪）：問「公司有沒有 X 津貼／補助」，X 在整個文件庫都沒出現 → 文件沒有這項福利
@@ -332,17 +374,19 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
         if (BENEFIT_CHECK and ans and "只能回答" not in ans and outputs
                 and not ("找不到" in ans and "人資" in ans)):
             if not _CORPUS:
-                names = await session.call_tool("list_all_filenames", {})
-                for f in "\n".join(c.text for c in names.content if getattr(c, "text", None)).splitlines():
-                    if f.strip():
-                        res = await session.call_tool("read_specific_document", {"filename": f.strip()})
-                        _CORPUS.append("\n".join(c.text for c in res.content if getattr(c, "text", None)))
+                # 整個文件庫只讀一次；by=corpus 的讀取不算「檢索到」（trace_report 不拿來判斷查錯）
+                with TRACE.span("harness.load_corpus", "harness"):
+                    names = await _call(session, "list_all_filenames", {}, "corpus")
+                    for f in names.splitlines():
+                        if f.strip():
+                            _CORPUS.append(await _call(session, "read_specific_document", {"filename": f.strip()}, "corpus"))
             item = checks.uncovered_benefit(question, "\n".join(_CORPUS))
             if item:
                 benefit_fixed = True
+                TRACE.event("check.BENEFIT_CHECK", action="rewrite", item=item)
                 ans = f"規章文件裡沒有提到「{item}」的相關規定。\n\n" + NOT_FOUND
         if LATEX_PLAIN and ans:
-            ans = checks.latex_to_plain(ans)
+            ans = _latex(ans, "final")
     return {"answer": ans if ans is not None else "（超過工具呼叫上限）", "calls": calls, "outputs": outputs,
             "nudged": nudged, "calc_nudged": calc_nudged, "support_fixed": support_fixed,
             "kin_fixed": locals().get("kin_fixed", False), "cite_read": cite_read, "arith_fixed": arith_fixed,
@@ -369,39 +413,63 @@ def grade(item: dict, out: dict) -> tuple[bool, str]:
     return ok, f"看過全文={read} 引用正確={cited} 內容正確={content}" + ("（被提醒先查）" if out.get("nudged") else "") + ("（被要求驗算）" if out.get("calc_nudged") else "")
 
 
+def _fixes(out: dict) -> list[str]:
+    return [k for k in ("cite_read", "formula_fixed", "arith_fixed", "kin_looked", "kin_fixed",
+                        "support_fixed", "term_fixed", "formula_fallback", "benefit_fixed") if out.get(k)]
+
+
 async def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("question", nargs="?")
     ap.add_argument("--eval", action="store_true")
     ap.add_argument("--questions", default=str(ROOT / "eval" / "questions.yaml"))
     ap.add_argument("--out", default=str(ROOT / "eval" / "results.json"))
+    ap.add_argument("--trace", action="store_true", help="每題的每一步寫進 traces/<run-id>.jsonl（同 TRACE=1）")
     a = ap.parse_args()
+    global TRACE
+    TRACE = tracing.Tracer.from_env(a.trace, Path(a.questions).stem if a.eval else "ask")
+    if TRACE.enabled:
+        try:  # 只在開追蹤時多一次 GET，記下 Ollama 版本（不影響回答）
+            ver = httpx.get(f"{OLLAMA_URL}/api/version", timeout=3).json().get("version")
+        except (httpx.HTTPError, ValueError):
+            ver = None
+        TRACE.header(model=MODEL, ollama_version=ver, mode="eval" if a.eval else "ask",
+                     questions=tracing.rel_path(a.questions) if a.eval else None)
     async with streamablehttp_client(MCP_URL) as (r, w, _), ClientSession(r, w) as session:
         await session.initialize()
         if not a.eval:
-            out = await ask(session, a.question or "婚假怎麼請？")
+            q = a.question or "婚假怎麼請？"
+            TRACE.start_question(0, {"q": q})
+            with TRACE.span("ask", "turn", question=q):
+                out = await ask(session, q)
+            TRACE.end_question(answer=out["answer"], fixes=_fixes(out))
             print(out["answer"])
+            tracing.say(TRACE)
             return
         items = yaml.safe_load(Path(a.questions).read_text(encoding="utf-8"))
         results, passed = [], 0
-        for it in items:
+        for i, it in enumerate(items):
             t0 = time.time()
+            TRACE.start_question(i, it)
             history = []
             for prev in it.get("before", []):  # 追問題：先問前一題，把問答放進歷史
-                p = await ask(session, prev, verbose=False)
+                with TRACE.span("ask.before", "turn", question=prev):
+                    p = await ask(session, prev, verbose=False)
                 history += [{"role": "user", "content": prev}, {"role": "assistant", "content": p["answer"]}]
-            out = await ask(session, it["q"], verbose=False, history=history)
+            with TRACE.span("ask", "turn", question=it["q"]):
+                out = await ask(session, it["q"], verbose=False, history=history)
             ok, why = grade(it, out)
             passed += ok
             dt = time.time() - t0
+            TRACE.end_question(ok=ok, why=why, answer=out["answer"], fixes=_fixes(out),
+                               nudged=out.get("nudged"), calc_nudged=out.get("calc_nudged"))
             print(f"{'✅' if ok else '❌'} {it['q']}  ({dt:.1f}s, {len(out['calls'])} 次工具)  {why}")
             results.append({"q": it["q"], "ok": ok, "why": why, "seconds": round(dt, 1),
                             "calls": out["calls"], "answer": out["answer"],
                             "nudged": out.get("nudged"), "calc_nudged": out.get("calc_nudged"),
-                            "fixes": [k for k in ("cite_read", "formula_fixed", "arith_fixed", "kin_looked", "kin_fixed",
-                                                  "support_fixed", "term_fixed", "formula_fallback", "benefit_fixed")
-                                      if out.get(k)]})
+                            "fixes": _fixes(out)})
         print(f"\n通過 {passed}/{len(items)}")
+        tracing.say(TRACE)
         Path(a.out).parent.mkdir(parents=True, exist_ok=True)
         Path(a.out).write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
 

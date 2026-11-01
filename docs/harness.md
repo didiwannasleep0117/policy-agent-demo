@@ -202,6 +202,57 @@ v10a 修好兩題計算、v10b 修好配偶喪假，兩邊都沒有題目變錯�
 - v11d 已複製成正式版（`agent/production_env.yaml`；prompt 跟 v10c 一樣）。第 8 輪的檢查還沒移植到 n8n
 - 基準：調整組題數改了、加了第 5 批，用 `run_eval.py --candidate v11d --from-existing --accept` 直接換成這次的結果（`--from-existing`：隱藏組已經各跑過一次，不再跑第二次）
 
+## 逐步追蹤（tracing）
+
+評測原本只看最後的答案，答錯時看不出是「沒查到對的文件」還是「查到了卻答錯」。現在 Python 版可以把每一題的每一步寫成本機 JSONL（`agent/tracing.py`），再用 `agent/trace_report.py` 分類錯題。不用外部服務、不用 API 金鑰。**只有 Python 版有追蹤，n8n 版沒有。**
+
+```bash
+uv run python agent/run_agent.py --eval --trace            # 或 TRACE=1；寫到 traces/<run-id>.jsonl（不 commit）
+TRACE=1 uv run python harness/loop.py probe v11d           # loop.py、run_eval.py 會把環境變數傳給 agent
+uv run python agent/trace_report.py traces/<run-id>.jsonl  # 錯題分類＋每一步耗時；--all 列出每一題，--otlp out.json 轉成 OTLP JSON
+```
+
+記了什麼（每一題一行，第一行是這次跑分的模型、Ollama 版本、git commit、檢查開關）：
+- **模型呼叫**（`llm.chat`）：模型名稱、有沒有開思考、token 數、耗時、模型要呼叫哪些工具
+- **工具呼叫**（`tool.*`）：名稱、參數、結果前 160 字；`by` 分成模型要求的（model）、程式檢查自己呼叫的（harness）、BENEFIT_CHECK 讀整個文件庫（corpus，不算「查到」）。搜尋另外解析出每份文件的名次、檔名、相關度、命中段數、附全文還是片段。MCP 搜尋工具回傳的是文件層級的結果，agent 拿不到切塊 id，所以沒記
+- **觸發的程式檢查**（`check.*`）：FORMULA_CHECK、KIN_LOOKUP、DOC_CHECK…；`retry=true` 表示退回模型重答，重答的模型呼叫和工具呼叫掛在這個檢查底下（`parent_id`）
+- **耗時**：每一步、每一題。追問題的前一題是另一個 `ask.before` 節點
+
+錯題怎麼分類（只看最後一問；預期文件來自題庫的 `expect_file`）：
+- `retrieval_miss`（查錯）：預期文件沒出現在任何搜尋結果或讀過的文件裡，包含完全沒呼叫查文件工具
+- `generation_error`（答錯）：預期文件有查到，答案還是被評錯；會附上評分原因（只看片段、沒引用、關鍵字不對）
+- 應拒答、應回答找不到的題目，題庫沒有預期文件，分不出查錯答錯，只標 `should_refuse`／`not_found_error`，並列出查了什麼
+
+追蹤只旁觀，不改送給模型的訊息、不改工具參數，也不多呼叫模型或工具（唯一多的是跑分開頭一次 `GET /api/version`）。`tests/test_tracing.py` 用假的 Ollama 和假的 MCP 跑 `ask()`，開和關追蹤時送出的每一個請求、回傳結果都要一模一樣。實際跑一次：v11d 開追蹤跑調整組，**通過 58/58**（11/2，平均 9.5 秒）。
+
+真實範例（`traces/example.jsonl`：用預設開關跑 `eval/questions.yaml`，大部分程式檢查是關的，通過 11/14，挑其中 3 題）：
+
+```
+$ uv run python agent/trace_report.py traces/example.jsonl
+通過 1/3，共 18.0 秒，平均 6.0 秒／題
+檢索：有預期文件的 3 題，最後一問查到預期文件 2 題，其中排第 1 名 2 題
+
+錯題分類：generation_error（答錯）1 題、retrieval_miss（查錯）1 題
+
+❌ [5] 考績拿 A 的話年終大概幾個月？
+   分類：generation_error（答錯）— 預期文件有查到（第 1 名，相關度 0.626，附全文），但答案內容（關鍵字）不對
+   預期文件：考績管理辦法.docx｜查文件工具 1 次｜拿到：考績管理辦法.docx（第 1 名 0.626）、教育訓練補助辦法.pdf（第 2 名 0.569）、婚喪喜慶補助辦法.pdf（第 3 名 0.541）
+   觸發的檢查：CALC_CHECK｜退回重答 1 次｜耗時 10.9 秒
+   最慢的步驟：llm.chat 4.5s、llm.chat 4.2s、llm.chat 1.0s
+   評分：看過全文=True 引用正確=True 內容正確=False（被要求驗算）
+
+❌ [10] 我時薪 200 元，平日下班後加班 3 小時，加班費是多少？
+   分類：retrieval_miss（查錯）— 最後一問沒有呼叫任何查文件的工具（只用了 calculate）
+   預期文件：加班管理辦法.pdf｜查文件工具 0 次｜拿到：（沒有）
+   觸發的檢查：（無）｜退回重答 0 次｜耗時 2.7 秒
+   最慢的步驟：llm.chat 1.7s、llm.chat 0.7s、ask（自身） 0.3s
+   評分：看過全文=False 引用正確=False 內容正確=False
+```
+
+- 第 10 題模型沒查文件，直接用勞基法常識算（200 × 3 × 1.3333）；第 5 題查到對的文件，卻自己假設月薪 12 萬、答成金額
+- 同兩題在正式版（v11d）的追蹤：第 10 題模型一樣只用計算機，DOC_CHECK 退回去查，接著 FORMULA_CHECK、ARITH_VERIFY 各退回一次才答對；第 5 題是 CALC_CHECK 開思考驗算後答對
+- 耗時（v11d 調整組 58 題，共 551.6 秒）：一般模型呼叫 289.6 秒（52.5%）、驗算時開思考的模型呼叫 229.3 秒（41.6%），工具呼叫加起來不到 2%。CALC_CHECK 在 29 題觸發。**慢的地方是思考模式的驗算，不是檢索**
+
 ## n8n 版套用 v5
 
 `scripts/n8n_build_workflow.py` 直接讀 `agent/system_prompt.md` 和 `agent/recheck_prompt.md` 產生工作流，所以 Python 版選出來的 prompt 不用手動貼進 n8n。驗算檢查節點也跟 Python 版對齊（拒答不驗算、只把含 `[[檔名]]` 的文件內容交給驗算 Agent）。

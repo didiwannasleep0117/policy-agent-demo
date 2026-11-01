@@ -69,6 +69,45 @@ What I should be upfront about:
 
 Compared with the first version, the tuning set went from 25/32 to 58/58, hidden batch 1 from 14/17 to 15/17, and hidden batch 2 from 13/17 to 16/17. The cost is speed: answers went from 4 to 5 seconds to roughly 7 to 11 seconds, because questions with numbers get an extra checking step. What changed in each round is in [docs/harness.md](docs/harness.md) (in Chinese).
 
+## Tracing: where a wrong answer went wrong
+
+The Python agent can record every step of every question to a local JSONL file. It needs no external service or API key. The n8n version is not traced.
+
+```bash
+uv run python agent/run_agent.py --eval --trace     # or TRACE=1; writes traces/<run-id>.jsonl (git-ignored)
+uv run python agent/trace_report.py traces/<run-id>.jsonl
+```
+
+`TRACE=1` also works with `harness/loop.py probe` and `scripts/run_eval.py`, which pass the environment on to the agent. Each question records:
+
+- Every model call: model name, thinking mode on or off, token counts, latency, and the tools the model asked for.
+- Every tool call: name, arguments, and the first 160 characters of the result. For searches, the rank, file name, similarity score and hit count of each returned document. The MCP search tool returns results per document, so chunk IDs are not visible to the agent and are not recorded.
+- Every code check that fired (for example `FORMULA_CHECK`, `KIN_LOOKUP`), and whether it sent the answer back to the model. The model and tool calls of that retry are nested under the check.
+- Latency per step and per question. The first line of the file records the model, Ollama version, git commit and check flags.
+
+Steps form a tree (`span_id` / `parent_id`, OpenTelemetry-style fields). `trace_report.py --otlp out.json` converts a trace file to OTLP JSON.
+
+For each failed eval question, `trace_report.py` checks whether the expected policy file (`expect_file` in the question YAML) was retrieved in the final turn:
+
+- `retrieval_miss`: the expected file never appeared in search results or document reads, including the case where no document tool was called.
+- `generation_error`: the expected file was retrieved, but the answer was graded wrong. The reason from the grader is shown (only saw snippets, wrong citation, or wrong content).
+- Questions that should be refused or answered "not found" have no expected file, so they are reported as `should_refuse` or `not_found_error` without a retrieval verdict.
+
+Tracing does not change what the agent sends to the model or the tools. A unit test runs the agent with a fake model and fake MCP server, with tracing on and off, and compares every request and the result. With tracing on, the tuning set scored 58/58 on 2026-11-02.
+
+Example: `traces/example.jsonl` has 3 questions from `eval/questions.yaml`, run with the default settings, where most code checks are off. Report excerpt:
+
+```
+錯題分類：generation_error（答錯）1 題、retrieval_miss（查錯）1 題
+
+❌ [5] 考績拿 A 的話年終大概幾個月？
+   分類：generation_error（答錯）— 預期文件有查到（第 1 名，相關度 0.626，附全文），但答案內容（關鍵字）不對
+❌ [10] 我時薪 200 元，平日下班後加班 3 小時，加班費是多少？
+   分類：retrieval_miss（查錯）— 最後一問沒有呼叫任何查文件的工具（只用了 calculate）
+```
+
+In question 10 the model answered from general labour-law knowledge without searching. In question 5 it found the right policy but assumed a monthly salary instead of answering in months. Both pass with the production settings (v11d). Their traces from the tuning run show why: in question 10 the model again called only the calculator, `DOC_CHECK` sent it back to search, then `FORMULA_CHECK` and `ARITH_VERIFY` each sent it back once more. In question 5 the `CALC_CHECK` re-check (with thinking on) fixed the answer.
+
 ## Design decisions
 
 | Problem | Fix |
