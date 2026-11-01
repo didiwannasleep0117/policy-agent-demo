@@ -5,7 +5,7 @@
   CACHE_DIR           索引與全文快取（預設 .cache）
   OLLAMA_URL          預設 http://127.0.0.1:11434
   EMBED_MODEL         預設 bge-m3
-  HOST / PORT         預設 0.0.0.0 / 8000
+  HOST / PORT         預設 127.0.0.1 / 8000（只聽本機）
   SYNC_INTERVAL_SEC   背景重新掃描間隔，預設 3600
 """
 from __future__ import annotations
