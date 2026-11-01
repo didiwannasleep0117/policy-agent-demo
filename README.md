@@ -89,7 +89,7 @@ Requirements: Ollama, Docker Desktop, [uv](https://docs.astral.sh/uv/)
 ```bash
 ollama pull bge-m3 && ollama pull qwen3:8b
 uv sync
-uv run python scripts/make_fake_docs.py      # generate the synthetic policies
+# The synthetic policies are already in data/docs/. To regenerate: uv run python scripts/make_fake_docs.py
 uv run policy-mcp                            # MCP server at http://127.0.0.1:8000/mcp
 
 # Python agent: ask a question / run the test questions

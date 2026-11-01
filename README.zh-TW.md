@@ -89,7 +89,7 @@ flowchart LR
 ```bash
 ollama pull bge-m3 && ollama pull qwen3:8b
 uv sync
-uv run python scripts/make_fake_docs.py      # 產生假規章
+# 假規章已經放在 data/docs/；要重新產生：uv run python scripts/make_fake_docs.py
 uv run policy-mcp                            # MCP 伺服器：http://127.0.0.1:8000/mcp
 
 # 只用 Python 問答 / 驗收
