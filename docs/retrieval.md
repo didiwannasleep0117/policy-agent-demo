@@ -1,6 +1,6 @@
 # 檢索與計算機工具
 
-[← 回到 README](../README.md)
+[← 回到 README](../README.zh-TW.md)
 
 ## Small-to-big 檢索怎麼做（`src/policy_mcp/indexer.py`、`server.py`）
 

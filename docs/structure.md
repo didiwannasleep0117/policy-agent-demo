@@ -1,6 +1,6 @@
 # 目錄（專案結構）
 
-[← 回到 README](../README.md)
+[← 回到 README](../README.zh-TW.md)
 
 ```
 src/policy_mcp/   MCP 伺服器（loaders / indexer / server）

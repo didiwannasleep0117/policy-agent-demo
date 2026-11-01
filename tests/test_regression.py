@@ -58,7 +58,7 @@ def test_readme_block_insert_and_replace():
     base = {**BASE, "allowed_drop": 1}
     block = scores.render_block(latest(), base)
     assert "45/45" in block and "100%" in block and "88.2%" in block and "5/9" in block and "55.6%" in block
-    assert "CI 基準 ≥ 44" in block and "CI 基準 ≥ 4" in block
+    assert "CI 最低要求 44 題" in block and "CI 最低要求 4 題" in block
     text = "# 標題\n\n> ⚠️ 示範專案\n\n![圖](x.png)\n\n說明：`<!-- EVAL:START -->` ～ `<!-- EVAL:END -->` 之間自動產生\n"
     assert scores.readme_block(text) is None  # 說明文字裡提到標記，不算區塊
     once = scores.replace_block(text, block)
@@ -80,3 +80,11 @@ def test_committed_results_pass_regression_check():
     # 跟 CI 跑的是同一個檢查：commit 進來的 latest.json／baseline.json／README／harness/runs 要一致、沒有退步
     check_regression = importlib.import_module("check_regression")
     assert check_regression.check() == []
+
+
+def test_english_block():
+    # README.md 是英文版：分數一樣，用英文寫；模型名稱裡的中文註記也換成英文
+    en = scores.render_block(latest(), {**BASE, "allowed_drop": 1}, "en")
+    assert "Tuning set" in en and "Hidden batch 1" in en and "88.2%" in en
+    assert "調整組" not in en and en.startswith(scores.START) and en.endswith(scores.END)
+    assert scores._model_en("qwen3:8b（只在驗算時思考）") == "qwen3:8b (thinking only when re-checking)"

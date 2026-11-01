@@ -1,6 +1,6 @@
 # 自動改進循環（仿 Harness²，`harness/`）
 
-[← 回到 README](../README.md)
+[← 回到 README](../README.zh-TW.md)
 
 手動調了十幾個版本之後，把「改 → 測 → 留下有用的」這個循環做成固定流程，概念來自 [Harness²](https://github.com/google-research/harness2)：不動模型權重，只改模型外面那一圈（prompt、工具、檢查規則）。
 
