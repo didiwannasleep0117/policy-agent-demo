@@ -1,36 +1,42 @@
 {
-  "candidate": "v10c",
+  "candidate": "v11d",
   "model": "qwen3:8b（只在驗算時思考）",
   "splits": {
     "tune": {
-      "passed": 50,
-      "total": 50,
-      "avg_seconds": 9.2,
-      "time": "2026-10-27 09:56"
+      "passed": 58,
+      "total": 58,
+      "avg_seconds": 9.7,
+      "time": "2026-10-27 21:46"
     },
     "holdout": {
       "passed": 15,
       "total": 17,
-      "avg_seconds": 9.5,
-      "time": "2026-10-27 09:59"
+      "avg_seconds": 10.1,
+      "time": "2026-10-27 21:49"
     },
     "holdout2": {
-      "passed": 15,
+      "passed": 16,
       "total": 17,
-      "avg_seconds": 6.8,
-      "time": "2026-10-27 10:01"
+      "avg_seconds": 7.3,
+      "time": "2026-10-27 21:51"
     },
     "holdout3": {
-      "passed": 6,
+      "passed": 7,
       "total": 9,
-      "avg_seconds": 6.7,
-      "time": "2026-10-27 10:02"
+      "avg_seconds": 6.9,
+      "time": "2026-10-27 21:52"
     },
     "holdout4": {
-      "passed": 11,
+      "passed": 14,
       "total": 14,
-      "avg_seconds": 9.8,
-      "time": "2026-10-27 10:05"
+      "avg_seconds": 10.7,
+      "time": "2026-10-27 21:55"
+    },
+    "holdout5": {
+      "passed": 14,
+      "total": 14,
+      "avg_seconds": 10.6,
+      "time": "2026-10-27 21:57"
     }
   }
 }

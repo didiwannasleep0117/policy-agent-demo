@@ -76,6 +76,12 @@ TERM_CHECK = os.getenv("TERM_CHECK", "0") == "1"      # 「可以…嗎」問的
 FORMULA_CHECK = os.getenv("FORMULA_CHECK", "0") == "1"  # 年終（月薪 × 基準 × 考績倍數）、平日加班費（時薪 ×（1＋加給）分段）
 KIN_LOOKUP = os.getenv("KIN_LOOKUP", "0") == "1"        # 喪假天數／奠儀金額：問到的親屬在名單哪一句，答案的數字要跟那一句一致
 _KIN_DEATH = re.compile(r"喪|過世|去世|往生|奠儀")
+# 第 8 輪（第 4 批隱藏組還錯的三種類型，換問法補進調整組後才改）
+LATEX_PLAIN = os.getenv("LATEX_PLAIN", "0") == "1"            # 答案裡的 LaTeX 算式轉成一般算式（算式重算才讀得到，聊天視窗也不會顯示反斜線）
+FORMULA_FALLBACK = os.getenv("FORMULA_FALLBACK", "0") == "1"  # FORMULA_CHECK 退回一次還是錯 → 直接用程式算出的公式和數字回答
+KIN_COMPOUND = os.getenv("KIN_COMPOUND", "0") == "1"          # 「老婆的爺爺」這種兩個稱謂 → 配偶之祖父母；名單沒列（配偶之兄弟姊妹）→ 找不到
+BENEFIT_CHECK = os.getenv("BENEFIT_CHECK", "0") == "1"        # 「公司有 X 津貼嗎？」X 在整個文件庫都沒出現 → 找不到
+_CORPUS: list[str] = []  # BENEFIT_CHECK 用的全部文件內容（只讀一次；不算進工具紀錄）
 _PERMIT_Q = re.compile(r"(可以|可不可以|能不能|能否|可否|能).{0,12}(嗎|？|\?)$")
 ACTION_MAP = [  # (問題裡的口語, 條文裡會出現的寫法)
     (("預支", "預借", "借支", "先借"), ("預支", "預借", "借支", "暫支", "預付")),
@@ -205,7 +211,9 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
                 ans = again or ans
         # Harness 檢查 2e（第 7 輪）：條文公式由程式解析並算出應得數字，答案裡沒有這個數字 → 附公式退回一次
         #   動機：年終漏乘基準（52,000 × 1.5）、加班費只算加給（180 × 1/3）；驗算 prompt 早就寫了「有基準就要乘基準」，8B 模型還是會漏
-        formula_fixed = False
+        formula_fixed = formula_fallback = False
+        if LATEX_PLAIN and ans:
+            ans = checks.latex_to_plain(ans)
         if FORMULA_CHECK and ans and "只能回答" not in ans and "找不到" not in ans and outputs:
             exp = checks.formula_expectation(question, "\n\n".join(o for o in outputs if "[[" in o))
             if exp and not checks.has_value(ans, exp[0]):
@@ -215,6 +223,14 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
                              + "。\n請照這個公式用 calculate 重算，重寫完整答案（附算式與 [[檔名]] 出處，不要提到系統檢查）。"})
                 again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
                 ans = again or ans
+                if LATEX_PLAIN:
+                    ans = checks.latex_to_plain(ans)
+                # 第 8 輪：退回一次還是沒有應得數字 → 保底，直接用程式從條文算出的公式回答
+                if FORMULA_FALLBACK and not checks.has_value(ans, exp[0]):
+                    fb = checks.formula_answer(question, "\n\n".join(o for o in outputs if "[[" in o), outputs)
+                    if fb:
+                        formula_fallback = True
+                        ans = fb
         # Harness 檢查 2d：答案裡的算式用計算機重算，算錯就附正確值退回一次
         arith_fixed = False
         if ARITH_VERIFY and ans and "只能回答" not in ans:
@@ -227,6 +243,8 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
                              + "\n請用正確的數字重算後面所有用到它的步驟與總數，重寫完整答案（不要提到系統檢查）。"})
                 again = await _tool_loop(session, http, msgs, ollama_tools, THINK, calls, outputs, verbose)
                 ans = again or ans
+                if LATEX_PLAIN:
+                    ans = checks.latex_to_plain(ans)
         # Harness 檢查 2f（第 7 輪）：問到名單上的親屬（含追問「如果是我太太呢？」），答案的天數／金額要跟條文那一句一致
         #   動機：追問換親屬時答「配偶十四日」（條文沒有）。不一致 → 附上那一句退回；還是不一致 → 直接用那一句回答
         kin_looked = False
@@ -237,9 +255,18 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
                      "喪假" if re.search(r"喪假|幾天|幾日|請假|請幾", topic_text) else None)
             kins = checks.kin_terms(question, KIN_MAP)
             evidence = "\n\n".join(o for o in outputs if "[[" in o)
+            # 第 8 輪：「先生的祖父母」「丈夫的姊姊」→ 一個條文用語（配偶之祖父母／配偶之兄弟姊妹）
+            comp = checks.compound_kin(question, KIN_MAP) if KIN_COMPOUND else None
+            if comp:
+                kins = [comp]
+                listed = checks.kin_listed(evidence, topic) if topic and _KIN_DEATH.search(topic_text) else []
+                if listed and comp[1] not in listed:
+                    kin_looked = True
+                    ans = (f"規章的{topic}條文列出的親屬是：{'、'.join(listed)}，沒有「{comp[1]}」（{comp[0]}），"
+                           "所以文件沒有這種情況的規定。\n\n" + NOT_FOUND)
             rule = (checks.kin_rule(evidence, kins[0][1], topic)
                     if topic and len(kins) == 1 and _KIN_DEATH.search(topic_text) else None)
-            if rule:
+            if rule and "找不到" not in ans:
                 val, unit, seg, all_vals = rule
 
                 def _wrong(a: str) -> bool:
@@ -299,10 +326,28 @@ async def ask(session: ClientSession, question: str, verbose: bool = True, histo
                     term_fixed = True
                     ans = f"查到的規章條文裡沒有「{hit}」的相關規定，所以無法確定可不可以。\n\n" + NOT_FOUND
                     break
+        # Harness 檢查 5（第 8 輪）：問「公司有沒有 X 津貼／補助」，X 在整個文件庫都沒出現 → 文件沒有這項福利
+        #   動機：文件沒寫的福利，模型會拿最接近的條文（生育補助、膳雜費）湊答案，或說「沒有」卻不建議洽人資
+        benefit_fixed = False
+        if (BENEFIT_CHECK and ans and "只能回答" not in ans and outputs
+                and not ("找不到" in ans and "人資" in ans)):
+            if not _CORPUS:
+                names = await session.call_tool("list_all_filenames", {})
+                for f in "\n".join(c.text for c in names.content if getattr(c, "text", None)).splitlines():
+                    if f.strip():
+                        res = await session.call_tool("read_specific_document", {"filename": f.strip()})
+                        _CORPUS.append("\n".join(c.text for c in res.content if getattr(c, "text", None)))
+            item = checks.uncovered_benefit(question, "\n".join(_CORPUS))
+            if item:
+                benefit_fixed = True
+                ans = f"規章文件裡沒有提到「{item}」的相關規定。\n\n" + NOT_FOUND
+        if LATEX_PLAIN and ans:
+            ans = checks.latex_to_plain(ans)
     return {"answer": ans if ans is not None else "（超過工具呼叫上限）", "calls": calls, "outputs": outputs,
             "nudged": nudged, "calc_nudged": calc_nudged, "support_fixed": support_fixed,
             "kin_fixed": locals().get("kin_fixed", False), "cite_read": cite_read, "arith_fixed": arith_fixed,
-            "term_fixed": term_fixed, "formula_fixed": formula_fixed, "kin_looked": kin_looked}
+            "term_fixed": term_fixed, "formula_fixed": formula_fixed, "kin_looked": kin_looked,
+            "formula_fallback": formula_fallback, "benefit_fixed": benefit_fixed}
 
 
 def grade(item: dict, out: dict) -> tuple[bool, str]:
@@ -354,7 +399,8 @@ async def main() -> None:
                             "calls": out["calls"], "answer": out["answer"],
                             "nudged": out.get("nudged"), "calc_nudged": out.get("calc_nudged"),
                             "fixes": [k for k in ("cite_read", "formula_fixed", "arith_fixed", "kin_looked", "kin_fixed",
-                                                  "support_fixed", "term_fixed") if out.get(k)]})
+                                                  "support_fixed", "term_fixed", "formula_fallback", "benefit_fixed")
+                                      if out.get(k)]})
         print(f"\n通過 {passed}/{len(items)}")
         Path(a.out).parent.mkdir(parents=True, exist_ok=True)
         Path(a.out).write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")

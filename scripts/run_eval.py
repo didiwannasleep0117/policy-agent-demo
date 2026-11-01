@@ -1,6 +1,6 @@
 """本機評測：一行指令跑完整評測，更新基準和 README 分數區塊（要先開 Ollama 和規章 MCP 伺服器）。
 
-  uv run python scripts/run_eval.py                       評 eval/latest.json 記錄的候選（預設 v9c），四組都跑（88 題，約 12 分鐘）
+  uv run python scripts/run_eval.py                       評 eval/latest.json 記錄的候選，六組都跑（調整組＋五批隱藏組，129 題，約 25 分鐘）
   uv run python scripts/run_eval.py --splits tune         只重跑調整組（其他組沿用 harness/runs/ 既有的結果）
   uv run python scripts/run_eval.py --candidate v8        換候選
   uv run python scripts/run_eval.py --from-existing       不跑模型：用 harness/runs/ 既有的結果重新評分（改了評分規則、或只想更新 README）
@@ -50,7 +50,7 @@ def services_ready(model: str) -> str | None:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="本機完整評測（調整組＋四批隱藏組），更新 eval/latest.json、基準、README 分數區塊")
+    ap = argparse.ArgumentParser(description="本機完整評測（調整組＋五批隱藏組），更新 eval/latest.json、基準、README 分數區塊")
     ap.add_argument("--candidate", help="候選名稱（harness/candidates/ 底下），預設沿用 eval/latest.json 的候選")
     ap.add_argument("--splits", nargs="+", choices=list(scores.SPLITS), default=list(scores.SPLITS),
                     help="要重跑哪幾組（預設全部）；沒重跑的組沿用 harness/runs/ 既有的結果")
