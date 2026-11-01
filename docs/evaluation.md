@@ -47,6 +47,7 @@ push 到 master、對 master 開 PR 時自動跑（也可在 Actions 頁面手�
      - 題庫：每一題的檔案都在 `data/docs/`、題目不重複、照標準造的「完美回答」一定評對、什麼都沒查的回答一定評錯
    - `tests/test_checks.py`：程式化檢查和工具（`agent/checks.py` 的算式重算、申請動作對照、引用讀全文、公式解析、親屬名單、LaTeX 轉換、兩個稱謂的親屬、文件沒寫的福利；驗算觸發的算式偵測；計算機拒絕 `__import__` 這類程式碼、次方太大；中文數字加註）
    - `tests/test_regression.py`：回歸檢查和 README 分數區塊的邏輯
+   - `tests/test_tracing.py`：逐步追蹤（`agent/tracing.py`）開和關時，agent 送給模型的請求和回傳結果一模一樣；搜尋結果解析；錯題分類（查錯／答錯）；範例追蹤檔沒有本機路徑（見[逐步追蹤](harness.md#逐步追蹤tracing)）
 2. **回歸檢查** `uv run python scripts/check_regression.py`
    - 用**現在的**評分規則和題庫，重新評分已 commit 的結果（`harness/runs/<候選>__tune.json`、`__holdout.json`、`__holdout2.json`、`__holdout3.json`、`__holdout4.json`、`__holdout5.json`），分數要跟 `eval/latest.json` 一樣。改了 `grade()` 或題目、讓分數變了，一定會被抓到
    - `eval/latest.json` 每一組答對的題數，不能低於基準 `eval/baseline.json`

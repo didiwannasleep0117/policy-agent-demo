@@ -7,3 +7,7 @@ eval/results*.json
 .cache_ann/
 *.log
 docs/screenshots/_debug*
+
+# 追蹤檔（agent/tracing.py）：本機產生，不 commit；只留一份範例
+traces/*
+!traces/example.jsonl

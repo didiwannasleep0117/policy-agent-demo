@@ -69,6 +69,17 @@ flowchart LR
 
 和最初的版本相比，調整組從 25/32 進步到 58/58，隱藏組第 1 批從 14/17 到 15/17、第 2 批從 13/17 到 16/17。代價是回答變慢，從每題 4～5 秒變成 7～11 秒左右，因為數字題會多一步驗算。每一輪改了什麼，寫在 [docs/harness.md](docs/harness.md)。
 
+## 逐步追蹤：答錯時看是查錯還是答錯
+
+Python 版可以把每一題的每一步（模型呼叫、工具呼叫與搜尋到的文件和相關度、觸發的程式檢查與重答、每一步耗時）寫成本機 JSONL，不用外部服務或 API 金鑰。n8n 版沒有追蹤。
+
+```bash
+uv run python agent/run_agent.py --eval --trace            # 或 TRACE=1；寫到 traces/<run-id>.jsonl（不 commit）
+uv run python agent/trace_report.py traces/<run-id>.jsonl  # 錯題分類＋每一步耗時
+```
+
+錯題會依題庫的 `expect_file` 分成 `retrieval_miss`（查錯：預期文件沒被查到，含完全沒查）和 `generation_error`（答錯：查到了但答案錯）。開追蹤不會改變 agent 的行為（有單元測試比對），開追蹤跑調整組是 58/58。欄位說明和真實範例見[自動改進循環：逐步追蹤](docs/harness.md#逐步追蹤tracing)，範例檔是 `traces/example.jsonl`。
+
 ## 設計重點
 
 | 遇到的問題 | 怎麼解決 |
